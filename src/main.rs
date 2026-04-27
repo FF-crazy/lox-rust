@@ -1,33 +1,59 @@
 use std::env::args;
-use std::fs::File;
-use std::io::{self, Read, Write, stdin};
+use std::io::{self, Write, stdin};
+
+use lox::ErrorHandler;
 
 fn main() {
   let args: Vec<String> = args().collect();
-  if args.len() != 2 && args.len() != 1 {
+  if args.len() > 2 {
     println!("Usage: lox [script]");
-    return;
+    std::process::exit(64)
   }
   if args.len() == 1 {
     repl();
     return;
   }
-  let read_result = File::open(&args[1]);
-  if let Ok(mut lox_file) = read_result {
-    let mut buf = String::new();
-    lox_file.read_to_string(&mut buf).unwrap();
-    print!("{}", buf);
-  } else {
-    println!("No such File");
-  }
+  run_file(&args[1]).expect("Cannot read such file");
 }
 
 fn repl() {
+  let stdin = stdin();
+
   loop {
-    print!(">  ");
+    print!("> ");
     io::stdout().flush().expect("Failed to flush stdout");
-    let mut buf = String::new();
-    stdin().read_line(&mut buf).expect("Failed to read");
-    println!("{}", buf);
+    let mut line = String::new();
+    let bytes_read = stdin.read_line(&mut line).expect("Failed to read");
+    if bytes_read == 0 {
+      break;
+    }
+    let line = line.trim_end();
+    if line.is_empty() {
+      break;
+    }
+    match run(line) {
+      Ok(_) => {}
+      Err(err) => {
+        err.report();
+        std::process::exit(64)
+      }
+    }
   }
+}
+
+fn run_file(path: &String) -> io::Result<()> {
+  let buf = std::fs::read_to_string(path)?;
+  match run(&buf) {
+    Ok(_) => {}
+    Err(err) => {
+      err.report();
+      std::process::exit(64)
+    }
+  }
+  Ok(())
+}
+
+fn run(source_code: &str) -> Result<(), ErrorHandler> {
+  source_code;
+  unimplemented!();
 }
