@@ -35,7 +35,6 @@ fn repl() {
       Ok(_) => {}
       Err(err) => {
         err.report();
-        std::process::exit(64)
       }
     }
   }
@@ -47,13 +46,14 @@ fn run_file(path: &String) -> io::Result<()> {
     Ok(_) => {}
     Err(err) => {
       err.report();
-      std::process::exit(64)
+      std::process::exit(65);
     }
   }
   Ok(())
 }
 
+
 fn run(source_code: &str) -> Result<(), ErrorHandler> {
-  source_code;
-  unimplemented!();
+  println!("{}", source_code );
+  Ok(())
 }
