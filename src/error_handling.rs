@@ -1,16 +1,16 @@
 use std::fmt;
 
 #[derive(Debug)]
-pub struct ErrorHandler {
+pub struct LoxError {
   had_error: bool,
   error_message: Option<ErrorMessage>,
   line: Option<u32>,
   on_where: Option<String>,
 }
 
-impl ErrorHandler {
-  pub fn new() -> ErrorHandler {
-    ErrorHandler {
+impl LoxError {
+  pub fn new() -> LoxError {
+    LoxError {
       had_error: false,
       error_message: None,
       line: None,
@@ -18,8 +18,8 @@ impl ErrorHandler {
     }
   }
 
-  pub fn with_error(error_message: ErrorMessage, line: u32, on_where: String) -> ErrorHandler {
-    ErrorHandler {
+  pub fn with_error(error_message: ErrorMessage, line: u32, on_where: String) -> LoxError {
+    LoxError {
       had_error: true,
       error_message: Some(error_message),
       line: Some(line),

@@ -3,7 +3,7 @@ use derive_more::Display;
 use std::fmt;
 
 #[derive(Display)]
-enum TokenType {
+pub enum TokenType {
   // Single-character
   LeftParen,
   RightParen,
@@ -52,7 +52,7 @@ enum TokenType {
   EOF,
 }
 
-struct Token {
+pub struct Token {
   ttype: TokenType,
   lexeme: String,
   literal: Option<Object>,
@@ -60,7 +60,7 @@ struct Token {
 }
 
 impl Token {
-  fn new(ttype: TokenType, lexeme: String, literal: Option<Object>, line: u32) -> Token {
+  pub fn new(ttype: TokenType, lexeme: String, literal: Option<Object>, line: u32) -> Token {
     Token {
       ttype,
       lexeme,

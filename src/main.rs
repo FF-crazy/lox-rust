@@ -1,7 +1,7 @@
 use std::env::args;
 use std::io::{self, Write, stdin};
 
-use lox::ErrorHandler;
+use lox::LoxError;
 
 fn main() {
   let args: Vec<String> = args().collect();
@@ -31,7 +31,7 @@ fn repl() {
     if line.is_empty() {
       break;
     }
-    match run(line) {
+    match run(&line.to_string()) {
       Ok(_) => {}
       Err(err) => {
         err.report();
@@ -40,7 +40,7 @@ fn repl() {
   }
 }
 
-fn run_file(path: &String) -> io::Result<()> {
+fn run_file(path: &str) -> io::Result<()> {
   let buf = std::fs::read_to_string(path)?;
   match run(&buf) {
     Ok(_) => {}
@@ -52,8 +52,7 @@ fn run_file(path: &String) -> io::Result<()> {
   Ok(())
 }
 
-
-fn run(source_code: &str) -> Result<(), ErrorHandler> {
-  println!("{}", source_code );
+fn run(source: &String) -> Result<(), LoxError> {
+  // println!("{}", source);
   Ok(())
 }
