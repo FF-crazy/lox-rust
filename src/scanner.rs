@@ -76,6 +76,19 @@ impl<'src> Scanner<'src> {
       '\n' => {
         self.line += 1;
       }
+      '"' => { // handling string
+        while self.peek() != '=' && !self.is_at_end() {
+          if self.peek() == '\n' {
+            self.line += 1;
+          }
+          self.advance();
+          if self.is_at_end() {
+            return Err(LoxError::with_error(ErrorMessage::UnterminatedString, self.line, String::new()))
+          }
+          let value = self.source[self.start+1..self.current-1].to_string();
+          self.add_token(TokenType::String, Some(Object::String(value)));
+        }
+      }
       other => return Err(LoxError::with_error(ErrorMessage::UnexpectedChar(other), self.line, String::new())),
     }
     Ok(())
