@@ -60,7 +60,7 @@ pub struct Token<'src> {
 }
 
 impl<'src> Token<'src> {
-  pub fn new(ttype: TokenType, lexeme: &str, literal: Option<Object>, line: usize) -> Token {
+  pub fn new(ttype: TokenType, lexeme: &str, literal: Option<Object>, line: usize) -> Token<'_> {
     Token {
       ttype,
       lexeme,

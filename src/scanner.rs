@@ -47,6 +47,35 @@ impl<'src> Scanner<'src> {
       '+' => self.add_token(TokenType::Plus, None),
       ';' => self.add_token(TokenType::SemiColon, None),
       '*' => self.add_token(TokenType::Star, None),
+      '!' => {
+        let ttype = if self.match_next('=') {TokenType::BangEqual} else {TokenType::Bang};
+        self.add_token(ttype, None);
+      },
+      '=' => {
+        let ttype = if self.match_next('=') {TokenType::Equal} else {TokenType::Assign};
+        self.add_token(ttype, None);
+      },
+      '<' => {
+        let ttype = if self.match_next('=') {TokenType::LessEqual} else {TokenType::Less};
+        self.add_token(ttype, None);
+      },
+      '>' => {
+        let ttype = if self.match_next('=') {TokenType::GreaterEqual} else {TokenType::Greater};
+        self.add_token(ttype, None);
+      }
+      '/' => {
+        if self.match_next('/') { // handling comment
+          while self.peek() != '\n' && !self.is_at_end() {
+            self.advance();
+          }
+        }
+      },
+      ' ' => {},
+      '\r' => {},
+      '\t' => {},
+      '\n' => {
+        self.line += 1;
+      }
       other => return Err(LoxError::with_error(ErrorMessage::UnexpectedChar(other), self.line, String::new())),
     }
     Ok(())
@@ -59,5 +88,23 @@ impl<'src> Scanner<'src> {
     let c = self.source[self.current..].chars().next().unwrap();
     self.current += c.len_utf8();
     c
+  }
+  fn match_next(&mut self, excepted: char) -> bool {
+    if self.is_at_end() {
+      return false
+    }
+    let c = self.source[self.current..].chars().next().unwrap();
+    if c != excepted {
+      return false
+    }
+    self.current += c.len_utf8();
+    true
+  }
+  fn peek(&self) -> char {
+    if self.is_at_end() {
+      '\0'
+    } else {
+      self.source[self.current..].chars().next().unwrap()
+    }
   }
 }
