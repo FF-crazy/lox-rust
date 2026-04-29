@@ -2,6 +2,7 @@ use std::env::args;
 use std::io::{self, Write, stdin};
 
 use lox::LoxError;
+use lox::scanner::Scanner;
 
 fn main() {
   let args: Vec<String> = args().collect();
@@ -53,6 +54,7 @@ fn run_file(path: &str) -> io::Result<()> {
 }
 
 fn run(source: &str) -> Result<(), LoxError> {
-  // println!("{}", source);
+  let scanner = Scanner::new(source);
+  scanner.scan_tokens()?;
   Ok(())
 }
