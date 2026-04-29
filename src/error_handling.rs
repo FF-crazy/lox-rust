@@ -4,7 +4,7 @@ use std::fmt;
 pub struct LoxError {
   had_error: bool,
   error_message: Option<ErrorMessage>,
-  line: Option<u32>,
+  line: Option<usize>,
   on_where: Option<String>,
 }
 
@@ -18,7 +18,7 @@ impl LoxError {
     }
   }
 
-  pub fn with_error(error_message: ErrorMessage, line: u32, on_where: String) -> LoxError {
+  pub fn with_error(error_message: ErrorMessage, line: usize, on_where: String) -> LoxError {
     LoxError {
       had_error: true,
       error_message: Some(error_message),
@@ -38,14 +38,16 @@ impl LoxError {
 }
 
 #[derive(Debug)]
-enum ErrorMessage {
-  Error,
+pub enum ErrorMessage {
+  UnexpectedChar(char),
+  UnterminatedString,
 }
 
 impl fmt::Display for ErrorMessage {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
-      ErrorMessage::Error => write!(f, "error"),
+      ErrorMessage::UnexpectedChar(c) => write!(f, "unexpected character '{}'", c),
+      ErrorMessage::UnterminatedString => write!(f, "unterminated string"),
     }
   }
 }

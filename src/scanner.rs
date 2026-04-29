@@ -1,15 +1,15 @@
-use crate::token::{Token, TokenType};
+use crate::{LoxError, object::Object, token::{Token, TokenType}};
 
-pub struct Scanner {
-  source: String,
-  tokens: Vec<Token>,
-  start: u32,
-  current: u32,
-  line: u32,
+pub struct Scanner<'src> {
+  source: &'src str,
+  tokens: Vec<Token<'src>>,
+  start: usize,
+  current: usize,
+  line: usize,
 }
 
-impl Scanner {
-  fn new(source: String) -> Scanner {
+impl<'src> Scanner<'src> {
+  pub fn new(source: &str) -> Scanner {
     Scanner {
       source,
       tokens: Vec::new(),
@@ -18,21 +18,34 @@ impl Scanner {
       line: 1,
     }
   }
-  fn scan_tokens(&mut self) -> &Vec<Token> {
+  pub fn scan_tokens(mut self) -> Result<Vec<Token<'src>>, LoxError> {
     while !self.is_at_end() {
       self.start = self.current;
       self.scan_token();
     }
     self.tokens.push(Token::new(
       TokenType::EOF,
-      String::from(""),
+      "",
       None,
       self.line,
     ));
-    &self.tokens
+    Ok(self.tokens)
   }
   fn is_at_end(&self) -> bool {
-    self.current >= self.source.len() as u32
+    self.current >= self.source.len()
   }
-  fn scan_token(&self) {}
+  fn scan_token(&mut self) {
+    let c= self.advance();
+    match c {
+      _ => {},
+    }
+  }
+  fn add_token(&mut self, ttype: TokenType, literal: Option<Object>) {
+    let text = &self.source[self.start..self.current];
+    self.tokens.push(Token::new(ttype, text, literal, self.line));
+  }
+  fn advance(&mut self) -> char {
+    self.current += 1;
+    self.source[(self.current-1)..self.current].chars().next().unwrap()
+  }
 }

@@ -52,7 +52,7 @@ fn run_file(path: &str) -> io::Result<()> {
   Ok(())
 }
 
-fn run(source: &String) -> Result<(), LoxError> {
+fn run(source: &str) -> Result<(), LoxError> {
   // println!("{}", source);
   Ok(())
 }

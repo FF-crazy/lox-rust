@@ -52,15 +52,15 @@ pub enum TokenType {
   EOF,
 }
 
-pub struct Token {
+pub struct Token<'src> {
   ttype: TokenType,
-  lexeme: String,
+  lexeme: &'src str,
   literal: Option<Object>,
-  line: u32,
+  line: usize,
 }
 
-impl Token {
-  pub fn new(ttype: TokenType, lexeme: String, literal: Option<Object>, line: u32) -> Token {
+impl<'src> Token<'src> {
+  pub fn new(ttype: TokenType, lexeme: &str, literal: Option<Object>, line: usize) -> Token {
     Token {
       ttype,
       lexeme,
@@ -70,7 +70,7 @@ impl Token {
   }
 }
 
-impl fmt::Display for Token {
+impl<'src> fmt::Display for Token<'src> {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     let literal = match &self.literal {
       Some(value) => value,
