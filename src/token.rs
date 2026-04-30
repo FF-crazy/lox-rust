@@ -76,10 +76,6 @@ impl<'src> fmt::Display for Token<'src> {
       Some(value) => value,
       None => &Object::Nil,
     };
-    write!(
-      f,
-      "{} {} {}",
-      self.ttype, self.lexeme, literal,
-    )
+    write!(f, "{} {} {}", self.ttype, self.lexeme, literal,)
   }
 }
