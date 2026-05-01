@@ -86,7 +86,7 @@ impl<'src> Scanner<'src> {
       '/' => {
         if self.match_next('/') {
           // handling comment
-          self.advance_util(|c| c == '\n');
+          self.advance_while(|c| c != '\n');
         }
       }
       ' ' => {}
@@ -102,7 +102,7 @@ impl<'src> Scanner<'src> {
         self.handle_digit();
       }
       other => {
-        if Scanner::is_alpha(other) {
+        if Self::is_alpha(other) {
           self.handle_identifier();
         } else {
           return Err(LoxError::with_error(
@@ -124,12 +124,15 @@ impl<'src> Scanner<'src> {
   }
 
   fn advance(&mut self) -> char {
-    let c = self.source[self.current..].chars().next().expect("Only call this before checking not at end");
+    let c = self.source[self.current..]
+      .chars()
+      .next()
+      .expect("Only call this before checking not at end");
     self.current += c.len_utf8();
     c
   }
 
-  fn advance_util(&mut self, func: impl Fn(char) -> bool) {
+  fn advance_while(&mut self, func: impl Fn(char) -> bool) {
     while let Some(c) = self.peek() {
       if !func(c) {
         break;
@@ -139,7 +142,7 @@ impl<'src> Scanner<'src> {
   }
 
   fn match_next(&mut self, excepted: char) -> bool {
-    if let Some(c) = self.peek_next() {
+    if let Some(c) = self.peek() {
       if c == excepted {
         self.advance();
         true
@@ -184,21 +187,50 @@ impl<'src> Scanner<'src> {
   }
 
   fn handle_digit(&mut self) {
-    self.advance_util(|c| c.is_ascii_digit());
+    self.advance_while(|c| c.is_ascii_digit());
     if self.peek() == Some('.') && self.peek_next().is_some_and(|c| c.is_ascii_digit()) {
       self.advance();
-      self.advance_util(|c| c.is_ascii_digit());
+      self.advance_while(|c| c.is_ascii_digit());
     }
-    let value: f64 = self.source[self.start..self.current].parse().expect("Never meeting parsing error");
+    let value: f64 = self.source[self.start..self.current]
+      .parse()
+      .expect("Never meeting parsing error");
     self.add_token(TokenType::Number, Some(Object::Number(value)));
   }
 
   fn handle_identifier(&mut self) {
-    self.advance_util(|c| c.is_alphanumeric() || c == '_');
-    self.add_token(TokenType::Identifier, None);
+    self.advance_while(|c| c.is_alphanumeric() || c == '_');
+    if let Some(ttype) = Self::match_keyword(&self.source[self.start..self.current]) {
+      self.add_token(ttype, None);
+    } else {
+      self.add_token(TokenType::Identifier, None);
+    }
   }
 
   fn is_alpha(c: char) -> bool {
     c.is_alphabetic() || c == '_'
+  }
+
+  fn match_keyword(text: &str) -> Option<TokenType> {
+    let ttype = match text {
+      "and" => TokenType::And,
+      "class" => TokenType::Class,
+      "else" => TokenType::Else,
+      "false" => TokenType::False,
+      "for" => TokenType::For,
+      "fun" => TokenType::Fun,
+      "if" => TokenType::If,
+      "nil" => TokenType::Nil,
+      "or" => TokenType::Or,
+      "print" => TokenType::Print,
+      "return" => TokenType::Return,
+      "super" => TokenType::Super,
+      "this" => TokenType::This,
+      "true" => TokenType::True,
+      "var" => TokenType::Var,
+      "while" => TokenType::While,
+      _ => return None,
+    };
+    Some(ttype)
   }
 }
