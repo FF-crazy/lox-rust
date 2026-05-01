@@ -4,6 +4,7 @@ use crate::{
   token::{Token, TokenType},
 };
 
+const RADIX: u32 = 10;
 pub struct Scanner<'src> {
   source: &'src str,
   tokens: Vec<Token<'src>>,
@@ -22,6 +23,7 @@ impl<'src> Scanner<'src> {
       line: 1,
     }
   }
+
   pub fn scan_tokens(mut self) -> Result<Vec<Token<'src>>, LoxError> {
     while !self.is_at_end() {
       self.start = self.current;
@@ -32,9 +34,11 @@ impl<'src> Scanner<'src> {
       .push(Token::new(TokenType::EOF, "", None, self.line));
     Ok(self.tokens)
   }
+
   fn is_at_end(&self) -> bool {
     self.current >= self.source.len()
   }
+
   fn scan_token(&mut self) -> Result<(), LoxError> {
     let c = self.advance();
     match c {
@@ -98,8 +102,10 @@ impl<'src> Scanner<'src> {
         self.handle_string()?;
       }
       other => {
-        if other >= '0' && c <= '9' {
-          self.handle_digit()?;
+        if other.is_digit(RADIX) {
+          self.handle_digit();
+        } else if self.is_alpha(other) {
+          self.handle_identifier();
         } else {
           return Err(LoxError::with_error(
             ErrorMessage::UnexpectedChar(other),
@@ -111,17 +117,20 @@ impl<'src> Scanner<'src> {
     }
     Ok(())
   }
+
   fn add_token(&mut self, ttype: TokenType, literal: Option<Object>) {
     let text = &self.source[self.start..self.current];
     self
       .tokens
       .push(Token::new(ttype, text, literal, self.line));
   }
+
   fn advance(&mut self) -> char {
     let c = self.source[self.current..].chars().next().unwrap();
     self.current += c.len_utf8();
     c
   }
+
   fn match_next(&mut self, excepted: char) -> bool {
     if self.is_at_end() {
       return false;
@@ -133,6 +142,7 @@ impl<'src> Scanner<'src> {
     self.current += c.len_utf8();
     true
   }
+
   fn peek(&self) -> char {
     if self.is_at_end() {
       '\0'
@@ -140,6 +150,15 @@ impl<'src> Scanner<'src> {
       self.source[self.current..].chars().next().unwrap()
     }
   }
+
+  fn peek_next(&self) -> char {
+    if self.current + 1 >= self.source.len() {
+      '\0'
+    } else {
+      self.source[self.current + 1..].chars().next().unwrap()
+    }
+  }
+
   fn handle_string(&mut self) -> Result<(), LoxError> {
     while self.peek() != '"' && !self.is_at_end() {
       if self.peek() == '\n' {
@@ -159,7 +178,30 @@ impl<'src> Scanner<'src> {
     self.add_token(TokenType::String, Some(Object::String(value)));
     Ok(())
   }
-  fn handle_digit(&mut self) -> Result<(), LoxError> {
-    Ok(())
+
+
+  fn handle_digit(&mut self) {
+    while self.peek().is_digit(RADIX) {
+      self.advance();
+    }
+    if self.peek() == '.' && self.peek_next().is_digit(RADIX) {
+      self.advance();
+    }
+    while self.peek().is_digit(RADIX) {
+      self.advance();
+    }
+    let value: f64 = self.source[self.start..self.current].parse().unwrap();
+    self.add_token(TokenType::Number, Some(Object::Number(value)));
+  }
+
+  fn handle_identifier(&mut self) {
+    while self.peek().is_alphanumeric() || self.peek() == '_' {
+      self.advance();
+    }
+    self.add_token(TokenType::Identifier, None);
+  }
+
+  fn is_alpha(&self, c: char) -> bool {
+    c.is_alphabetic() || c == '_'
   }
 }
