@@ -4,7 +4,6 @@ use crate::{
   token::{Token, TokenType},
 };
 
-const RADIX: u32 = 10;
 pub struct Scanner<'src> {
   source: &'src str,
   tokens: Vec<Token<'src>>,
@@ -87,9 +86,7 @@ impl<'src> Scanner<'src> {
       '/' => {
         if self.match_next('/') {
           // handling comment
-          while self.peek() != '\n' && !self.is_at_end() {
-            self.advance();
-          }
+          self.advance_util(|c| c == '\n');
         }
       }
       ' ' => {}
@@ -101,10 +98,11 @@ impl<'src> Scanner<'src> {
       '"' => {
         self.handle_string()?;
       }
+      '0'..='9' => {
+        self.handle_digit();
+      }
       other => {
-        if other.is_digit(RADIX) {
-          self.handle_digit();
-        } else if self.is_alpha(other) {
+        if Scanner::is_alpha(other) {
           self.handle_identifier();
         } else {
           return Err(LoxError::with_error(
@@ -126,43 +124,49 @@ impl<'src> Scanner<'src> {
   }
 
   fn advance(&mut self) -> char {
-    let c = self.source[self.current..].chars().next().unwrap();
+    let c = self.source[self.current..].chars().next().expect("Only call this before checking not at end");
     self.current += c.len_utf8();
     c
   }
 
+  fn advance_util(&mut self, func: impl Fn(char) -> bool) {
+    while let Some(c) = self.peek() {
+      if !func(c) {
+        break;
+      }
+      self.advance();
+    }
+  }
+
   fn match_next(&mut self, excepted: char) -> bool {
-    if self.is_at_end() {
-      return false;
-    }
-    let c = self.source[self.current..].chars().next().unwrap();
-    if c != excepted {
-      return false;
-    }
-    self.current += c.len_utf8();
-    true
-  }
-
-  fn peek(&self) -> char {
-    if self.is_at_end() {
-      '\0'
+    if let Some(c) = self.peek_next() {
+      if c == excepted {
+        self.advance();
+        true
+      } else {
+        false
+      }
     } else {
-      self.source[self.current..].chars().next().unwrap()
+      false
     }
   }
 
-  fn peek_next(&self) -> char {
-    if self.current + 1 >= self.source.len() {
-      '\0'
-    } else {
-      self.source[self.current + 1..].chars().next().unwrap()
-    }
+  fn peek(&self) -> Option<char> {
+    self.source[self.current..].chars().next()
+  }
+
+  fn peek_next(&self) -> Option<char> {
+    let mut iter = self.source[self.current..].chars();
+    iter.next()?;
+    iter.next()
   }
 
   fn handle_string(&mut self) -> Result<(), LoxError> {
-    while self.peek() != '"' && !self.is_at_end() {
-      if self.peek() == '\n' {
-        self.line += 1;
+    while let Some(c) = self.peek() {
+      match c {
+        '"' => break,
+        '\n' => self.line += 1,
+        _ => {}
       }
       self.advance();
     }
@@ -179,29 +183,22 @@ impl<'src> Scanner<'src> {
     Ok(())
   }
 
-
   fn handle_digit(&mut self) {
-    while self.peek().is_digit(RADIX) {
+    self.advance_util(|c| c.is_ascii_digit());
+    if self.peek() == Some('.') && self.peek_next().is_some_and(|c| c.is_ascii_digit()) {
       self.advance();
+      self.advance_util(|c| c.is_ascii_digit());
     }
-    if self.peek() == '.' && self.peek_next().is_digit(RADIX) {
-      self.advance();
-    }
-    while self.peek().is_digit(RADIX) {
-      self.advance();
-    }
-    let value: f64 = self.source[self.start..self.current].parse().unwrap();
+    let value: f64 = self.source[self.start..self.current].parse().expect("Never meeting parsing error");
     self.add_token(TokenType::Number, Some(Object::Number(value)));
   }
 
   fn handle_identifier(&mut self) {
-    while self.peek().is_alphanumeric() || self.peek() == '_' {
-      self.advance();
-    }
+    self.advance_util(|c| c.is_alphanumeric() || c == '_');
     self.add_token(TokenType::Identifier, None);
   }
 
-  fn is_alpha(&self, c: char) -> bool {
+  fn is_alpha(c: char) -> bool {
     c.is_alphabetic() || c == '_'
   }
 }
