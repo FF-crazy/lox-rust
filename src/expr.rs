@@ -1,5 +1,5 @@
-
 use crate::{object::Object, token::Token};
+use std::fmt;
 
 #[derive(Debug)]
 pub enum Expr<'src> {
@@ -16,13 +16,30 @@ pub enum Expr<'src> {
   },
 }
 
+impl<'src> fmt::Display for Expr<'src> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      Expr::Literal(value) => write!(f, "{}", value),
+      Expr::Grouping(inner) => write!(f, "(group {})", inner),
+      Expr::Unary { operator, right } => write!(f, "({} {})", operator.lexeme(), right),
+      Expr::Binary {
+        left,
+        operator,
+        right,
+      } => {
+        write!(f, "({} {} {})", operator.lexeme(), left, right)
+      }
+    }
+  }
+}
+
 #[cfg(test)]
 mod test {
+  use super::*;
   use crate::{
     object::Object,
     token::{Token, TokenType},
   };
-  use super::*;
 
   #[test]
   fn test() {

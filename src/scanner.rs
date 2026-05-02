@@ -1,5 +1,5 @@
 use crate::{
-  error_handling::{ErrorMessage, LoxError},
+  error_handling::{ErrorMessage, SyntaxError},
   object::Object,
   token::{Token, TokenType},
 };
@@ -23,7 +23,7 @@ impl<'src> Scanner<'src> {
     }
   }
 
-  pub fn scan_tokens(mut self) -> Result<Vec<Token<'src>>, LoxError> {
+  pub fn scan_tokens(mut self) -> Result<Vec<Token<'src>>, SyntaxError> {
     while !self.is_at_end() {
       self.start = self.current;
       self.scan_token()?;
@@ -38,7 +38,7 @@ impl<'src> Scanner<'src> {
     self.current >= self.source.len()
   }
 
-  fn scan_token(&mut self) -> Result<(), LoxError> {
+  fn scan_token(&mut self) -> Result<(), SyntaxError> {
     let c = self.advance();
     match c {
       '(' => self.add_token(TokenType::LeftParen, None),
@@ -109,7 +109,7 @@ impl<'src> Scanner<'src> {
         if Self::is_alpha(other) {
           self.handle_identifier();
         } else {
-          return Err(LoxError::with_error(
+          return Err(SyntaxError::at(
             ErrorMessage::UnexpectedChar(other),
             self.line,
             String::new(),
@@ -168,7 +168,7 @@ impl<'src> Scanner<'src> {
     iter.next()
   }
 
-  fn handle_string(&mut self) -> Result<(), LoxError> {
+  fn handle_string(&mut self) -> Result<(), SyntaxError> {
     while let Some(c) = self.peek() {
       match c {
         '"' => break,
@@ -178,7 +178,7 @@ impl<'src> Scanner<'src> {
       self.advance();
     }
     if self.is_at_end() {
-      return Err(LoxError::with_error(
+      return Err(SyntaxError::at(
         ErrorMessage::UnterminatedString,
         self.line,
         String::new(),
@@ -211,7 +211,7 @@ impl<'src> Scanner<'src> {
     }
   }
 
-  fn handle_block_comment(&mut self) -> Result<(), LoxError> {
+  fn handle_block_comment(&mut self) -> Result<(), SyntaxError> {
     while let Some(c) = self.peek() {
       match c {
         '*' => {
@@ -231,7 +231,7 @@ impl<'src> Scanner<'src> {
       self.advance();
       Ok(())
     } else {
-      Err(LoxError::with_error(
+      Err(SyntaxError::at(
         ErrorMessage::UnterminatedComment,
         self.line,
         String::new(),
@@ -266,7 +266,6 @@ impl<'src> Scanner<'src> {
     Some(ttype)
   }
 }
-
 
 #[cfg(test)]
 mod scanner_test {

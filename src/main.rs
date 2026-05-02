@@ -1,7 +1,8 @@
 use std::env::args;
 use std::io::{self, Write, stdin};
 
-use lox::LoxError;
+use lox::SyntaxError;
+use lox::error_handling::LoxError;
 use lox::scanner::Scanner;
 
 fn main() {

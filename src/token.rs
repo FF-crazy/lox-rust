@@ -69,6 +69,10 @@ impl<'src> Token<'src> {
       line,
     }
   }
+
+  pub fn lexeme(&self) -> &str {
+    self.lexeme
+  }
 }
 
 impl<'src> fmt::Display for Token<'src> {

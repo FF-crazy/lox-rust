@@ -1,55 +1,120 @@
-use std::fmt;
+use std::error::Error;
+use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug)]
-pub struct LoxError {
-  had_error: bool,
-  error_message: Option<ErrorMessage>,
-  line: Option<usize>,
-  on_where: Option<String>,
+pub enum LoxError {
+  Syntax(SyntaxError),
+  Runtime(RuntimeError),
 }
 
 impl LoxError {
-  pub fn new() -> LoxError {
-    LoxError {
-      had_error: false,
-      error_message: None,
-      line: None,
-      on_where: None,
+  pub fn report(&self) {
+    eprintln!("{self}");
+  }
+}
+
+impl Display for LoxError {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    match self {
+      Self::Syntax(error) => Display::fmt(error, f),
+      Self::Runtime(error) => Display::fmt(error, f),
+    }
+  }
+}
+
+impl Error for LoxError {
+  fn source(&self) -> Option<&(dyn Error + 'static)> {
+    match self {
+      Self::Syntax(error) => Some(error),
+      Self::Runtime(error) => Some(error),
+    }
+  }
+}
+
+impl From<SyntaxError> for LoxError {
+  fn from(error: SyntaxError) -> Self {
+    Self::Syntax(error)
+  }
+}
+
+impl From<RuntimeError> for LoxError {
+  fn from(error: RuntimeError) -> Self {
+    Self::Runtime(error)
+  }
+}
+
+#[derive(Debug)]
+pub struct SyntaxError {
+  message: ErrorMessage,
+  line: usize,
+  location: Option<String>,
+}
+
+impl SyntaxError {
+  pub fn new(message: ErrorMessage, line: usize) -> Self {
+    Self {
+      message,
+      line,
+      location: None,
     }
   }
 
-  pub fn with_error(error_message: ErrorMessage, line: usize, on_where: String) -> LoxError {
-    LoxError {
-      had_error: true,
-      error_message: Some(error_message),
-      line: Some(line),
-      on_where: Some(on_where),
+  pub fn at(message: ErrorMessage, line: usize, location: impl Into<String>) -> Self {
+    Self {
+      message,
+      line,
+      location: Some(location.into()),
     }
   }
 
   pub fn report(&self) {
-    if self.had_error {
-      let line = self.line.unwrap();
-      let on_where = self.on_where.as_deref().unwrap();
-      let error_message = self.error_message.as_ref().unwrap();
-      eprintln!("[{}] Error {}: {}", line, on_where, error_message);
+    eprintln!("{self}");
+  }
+}
+
+impl Display for SyntaxError {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    match self
+      .location
+      .as_deref()
+      .filter(|location| !location.is_empty())
+    {
+      Some(location) => write!(
+        f,
+        "[line {}] Error {}: {}",
+        self.line, location, self.message
+      ),
+      None => write!(f, "[line {}] Error: {}", self.line, self.message),
     }
   }
 }
+
+impl Error for SyntaxError {}
+
+#[derive(Debug)]
+pub struct RuntimeError {}
+
+impl Display for RuntimeError {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    f.write_str("runtime error")
+  }
+}
+
+impl Error for RuntimeError {}
 
 #[derive(Debug)]
 pub enum ErrorMessage {
   UnexpectedChar(char),
   UnterminatedString,
-  UnterminatedComment
+  UnterminatedComment,
 }
 
-impl fmt::Display for ErrorMessage {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl Display for ErrorMessage {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
-      ErrorMessage::UnexpectedChar(c) => write!(f, "unexpected character '{}'", c),
-      ErrorMessage::UnterminatedString => write!(f, "unterminated string"),
-      ErrorMessage::UnterminatedComment => write!(f, "unterminated block comment"),
+      Self::UnexpectedChar(c) => write!(f, "unexpected character '{c}'"),
+      Self::UnterminatedString => f.write_str("unterminated string"),
+      Self::UnterminatedComment => f.write_str("unterminated block comment"),
     }
   }
 }
