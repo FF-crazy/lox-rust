@@ -87,6 +87,10 @@ impl<'src> Scanner<'src> {
         if self.match_next('/') {
           // handling comment
           self.advance_while(|c| c != '\n');
+        } else if self.match_next('*') {
+          self.handle_block_comment()?;
+        } else {
+          self.add_token(TokenType::Slash, None);
         }
       }
       ' ' => {}
@@ -207,6 +211,34 @@ impl<'src> Scanner<'src> {
     }
   }
 
+  fn handle_block_comment(&mut self) -> Result<(), LoxError> {
+    while let Some(c) = self.peek() {
+      match c {
+        '*' => {
+          if self.peek_next() == Some('/') {
+            break;
+          }
+        }
+        '\n' => {
+          self.line += 1;
+        }
+        _ => {}
+      }
+      self.advance();
+    }
+    if self.peek() == Some('*') {
+      self.advance();
+      self.advance();
+      Ok(())
+    } else {
+      Err(LoxError::with_error(
+        ErrorMessage::UnterminatedComment,
+        self.line,
+        String::new(),
+      ))
+    }
+  }
+
   fn is_alpha(c: char) -> bool {
     c.is_alphabetic() || c == '_'
   }
@@ -232,5 +264,46 @@ impl<'src> Scanner<'src> {
       _ => return None,
     };
     Some(ttype)
+  }
+}
+
+
+#[cfg(test)]
+mod scanner_test {
+  use super::*;
+  use TokenType::*;
+
+  fn generate(s: &str) -> Vec<Token<'_>> {
+    let s = Scanner::new(s);
+    s.scan_tokens().unwrap()
+  }
+
+  #[test]
+  fn test() {
+    let s = Scanner::new("var varue = 0123.456\n print varue\n // this is comment");
+    let tokens = s.scan_tokens().unwrap();
+    dbg!(tokens);
+  }
+
+  #[test]
+  fn test_block_comment() {
+    let s = Scanner::new(
+      r"/*
+    * hello
+    */",
+    );
+    let token = s.scan_tokens().unwrap();
+    dbg!(token);
+  }
+
+  #[test]
+  fn test_block_comment_error() {
+    let t = generate(
+      r"/*
+    * hello
+    * please
+    /////",
+    );
+    dbg!(t);
   }
 }

@@ -41,6 +41,7 @@ impl LoxError {
 pub enum ErrorMessage {
   UnexpectedChar(char),
   UnterminatedString,
+  UnterminatedComment
 }
 
 impl fmt::Display for ErrorMessage {
@@ -48,6 +49,7 @@ impl fmt::Display for ErrorMessage {
     match self {
       ErrorMessage::UnexpectedChar(c) => write!(f, "unexpected character '{}'", c),
       ErrorMessage::UnterminatedString => write!(f, "unterminated string"),
+      ErrorMessage::UnterminatedComment => write!(f, "unterminated block comment"),
     }
   }
 }

@@ -2,7 +2,7 @@ use crate::object::Object;
 use derive_more::Display;
 use std::fmt;
 
-#[derive(Display)]
+#[derive(Display, Debug)]
 pub enum TokenType {
   // Single-character
   LeftParen,
@@ -52,6 +52,7 @@ pub enum TokenType {
   EOF,
 }
 
+#[derive(Debug)]
 pub struct Token<'src> {
   ttype: TokenType,
   lexeme: &'src str,
