@@ -1,8 +1,8 @@
 use std::env::args;
 use std::io::{self, Write, stdin};
 
-use lox::SyntaxError;
 use lox::error_handling::LoxError;
+use lox::parser::Parser;
 use lox::scanner::Scanner;
 
 fn main() {
@@ -56,6 +56,8 @@ fn run_file(path: &str) -> io::Result<()> {
 
 fn run(source: &str) -> Result<(), LoxError> {
   let scanner = Scanner::new(source);
-  scanner.scan_tokens()?;
+  let tokens = scanner.scan_tokens()?;
+  let parser = Parser::new(tokens);
+  let expr = parser.parse()?;
   Ok(())
 }

@@ -43,9 +43,10 @@ mod test {
 
   #[test]
   fn test() {
-    let _expr = Expr::Unary {
+    let expr = Expr::Unary {
       operator: Token::new(TokenType::Minus, "-", None, 1),
       right: Box::new(Expr::Literal(Object::Number(123_f64))),
     };
+    println!("{}", expr);
   }
 }

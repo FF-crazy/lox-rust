@@ -28,9 +28,6 @@ impl<'src> Scanner<'src> {
       self.start = self.current;
       self.scan_token()?;
     }
-    self
-      .tokens
-      .push(Token::new(TokenType::EOF, "", None, self.line));
     Ok(self.tokens)
   }
 
@@ -270,7 +267,6 @@ impl<'src> Scanner<'src> {
 #[cfg(test)]
 mod scanner_test {
   use super::*;
-  use TokenType::*;
 
   fn generate(s: &str) -> Vec<Token<'_>> {
     let s = Scanner::new(s);

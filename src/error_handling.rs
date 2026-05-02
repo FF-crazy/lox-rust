@@ -1,6 +1,8 @@
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
+use crate::token::TokenType;
+
 #[derive(Debug)]
 pub enum LoxError {
   Syntax(SyntaxError),
@@ -107,6 +109,8 @@ pub enum ErrorMessage {
   UnexpectedChar(char),
   UnterminatedString,
   UnterminatedComment,
+  ExpectedExpression,
+  ExpectedToken(TokenType),
 }
 
 impl Display for ErrorMessage {
@@ -115,6 +119,8 @@ impl Display for ErrorMessage {
       Self::UnexpectedChar(c) => write!(f, "unexpected character '{c}'"),
       Self::UnterminatedString => f.write_str("unterminated string"),
       Self::UnterminatedComment => f.write_str("unterminated block comment"),
+      Self::ExpectedExpression => f.write_str("Not a valid expression"),
+      Self::ExpectedToken(t) => write!(f, "expected token '{}'", t),
     }
   }
 }
