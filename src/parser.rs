@@ -136,7 +136,7 @@ impl<'src> Parser<'src> {
       }
     }
     Err(SyntaxError::at(
-      ErrorMessage::ExpectedExpression,
+      ErrorMessage::ExpectedToken(ttype),
       self.current_line(),
       message,
     ))

@@ -1,21 +1,23 @@
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
-use crate::token::TokenType;
+use crate::token::{Token, TokenType};
 
 #[derive(Debug)]
-pub enum LoxError {
+pub enum LoxError<'src> {
   Syntax(SyntaxError),
-  Runtime(RuntimeError),
+  Runtime(RuntimeError<'src>),
 }
 
-impl LoxError {
+impl<'src> LoxError<'src> {
   pub fn report(&self) {
     eprintln!("{self}");
   }
 }
 
-impl Display for LoxError {
+impl<'src> Error for LoxError<'src> {}
+
+impl<'src> Display for LoxError<'src> {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
       Self::Syntax(error) => Display::fmt(error, f),
@@ -24,23 +26,14 @@ impl Display for LoxError {
   }
 }
 
-impl Error for LoxError {
-  fn source(&self) -> Option<&(dyn Error + 'static)> {
-    match self {
-      Self::Syntax(error) => Some(error),
-      Self::Runtime(error) => Some(error),
-    }
-  }
-}
-
-impl From<SyntaxError> for LoxError {
+impl<'src> From<SyntaxError> for LoxError<'src> {
   fn from(error: SyntaxError) -> Self {
     Self::Syntax(error)
   }
 }
 
-impl From<RuntimeError> for LoxError {
-  fn from(error: RuntimeError) -> Self {
+impl<'src> From<RuntimeError<'src>> for LoxError<'src> {
+  fn from(error: RuntimeError<'src>) -> Self {
     Self::Runtime(error)
   }
 }
@@ -94,15 +87,23 @@ impl Display for SyntaxError {
 impl Error for SyntaxError {}
 
 #[derive(Debug)]
-pub struct RuntimeError {}
+pub struct RuntimeError<'src> {
+  pub message: String,
+  pub token: Token<'src>,
+}
 
-impl Display for RuntimeError {
+impl<'src> Display for RuntimeError<'src> {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    f.write_str("runtime error")
+    write!(
+      f,
+      "Runtime Error: at {}, {}",
+      self.token.lexeme(),
+      self.message
+    )
   }
 }
 
-impl Error for RuntimeError {}
+impl<'src> Error for RuntimeError<'src> {}
 
 #[derive(Debug)]
 pub enum ErrorMessage {
