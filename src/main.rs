@@ -2,7 +2,7 @@ use std::env::args;
 use std::io::{self, Write, stdin};
 
 use lox::error_handling::LoxError;
-use lox::interpreter::{self, Interpreter};
+use lox::interpreter::Interpreter;
 use lox::parser::Parser;
 use lox::scanner::Scanner;
 
@@ -60,8 +60,8 @@ fn run(source: &str) -> Result<(), LoxError<'_>> {
   let tokens = scanner.scan_tokens()?;
   let parser = Parser::new(tokens);
   let expr = parser.parse()?;
-  let interpreter = Interpreter::new(expr);
-  let val = interpreter.execute()?;
+  let interpreter = Interpreter::new();
+  let val = interpreter.execute(&expr)?;
   println!("{}", val);
 
   Ok(())
