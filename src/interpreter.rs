@@ -85,13 +85,7 @@ impl<'src> Interpreter {
           token: operator.clone(),
         }),
       },
-      TokenType::Star => match (left_value, right_value) {
-        (Object::Number(l), Object::Number(r)) => Ok(Object::Number(l * r)),
-        _ => Err(RuntimeError {
-          message: "'*' operator must be used between Numbers".to_string(),
-          token: operator.clone(),
-        }),
-      },
+      TokenType::Star => Self::object_multiply(left_value, right_value, operator),
       TokenType::Slash => match (left_value, right_value) {
         (Object::Number(l), Object::Number(r)) => Ok(Object::Number(l / r)),
         _ => Err(RuntimeError {
@@ -106,8 +100,8 @@ impl<'src> Interpreter {
       ))),
       TokenType::Greater => Self::object_compare(left_value, right_value, operator, |x, y| x > y),
       TokenType::Less => Self::object_compare(left_value, right_value, operator, |x, y| x < y),
-      TokenType::GreaterEqual => Self::object_compare(right_value, left_value, operator, |x, y| x >= y),
-      TokenType::LessEqual => Self::object_compare(right_value, left_value, operator, |x, y| x <= y),
+      TokenType::GreaterEqual => Self::object_compare(left_value,right_value, operator, |x, y| x >= y),
+      TokenType::LessEqual => Self::object_compare(left_value, right_value, operator, |x, y| x <= y),
       _ => Err(RuntimeError {
         message: "Never run this line".to_string(),
         token: operator.clone(),
@@ -124,9 +118,31 @@ impl<'src> Interpreter {
       (Object::Number(l), Object::Number(r)) => Ok(Object::Number(l + r)),
       (Object::String(l), Object::String(r)) => Ok(Object::String(l + &r)),
       _ => Err(RuntimeError {
-        message: "Operand must be Number or String".to_string(),
+        message: "'+' Operand must be Number or String".to_string(),
         token: token.clone(),
       }),
+    }
+  }
+
+  fn object_multiply(left: Object, right: Object, token: &Token<'src>) -> Result<Object, RuntimeError<'src>> {
+    match (left, right) {
+      (Object::Number(l), Object::Number(r)) => Ok(Object::Number(l+r)),
+      (Object::String(s), Object::Number(num)) | (Object::Number(num), Object::String(s)) => {
+        if let Some(num) = Self::as_repetition_count(num) {
+          Ok(Object::String(s.repeat(num)))
+        } else {
+          Err(RuntimeError { message: "String repetition count must be a non-negative integer".to_string(), token: token.clone() })
+        }
+      }
+    _ => Err(RuntimeError { message: format!("{} operator must be Number or String", token.lexeme()), token: token.clone() })
+    }
+  }
+
+  fn as_repetition_count(n: f64) -> Option<usize> {
+    if n.is_finite() && n >= 0.0 && n.fract() == 0.0 {
+      Some(n as usize)
+    } else {
+      None
     }
   }
 
@@ -139,7 +155,7 @@ impl<'src> Interpreter {
     match (left, right) {
       (Object::Number(l), Object::Number(r)) => Ok(Object::Boolean(cmp(l, r))),
       _ => Err(RuntimeError {
-        message: "Operands must be Numbers".to_string(),
+        message: format!("'{}' must be used between Number", token.lexeme()),
         token: token.clone(),
       }),
     }
@@ -175,5 +191,6 @@ mod test {
   fn test() {
     assert_eq!(Object::Boolean(false), get("1 >= 2"));
     assert_eq!(Object::Boolean(true), get("3 >= 3"));
+    assert_eq!(Object::String("HelloHelloHello".to_string()), get("3 * \"Hello\""));
   }
 }
