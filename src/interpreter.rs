@@ -5,6 +5,8 @@ use crate::{
   token::{Token, TokenType},
 };
 
+use std::cmp::Ordering;
+
 pub struct Interpreter {}
 
 impl<'src> Interpreter {
@@ -98,10 +100,18 @@ impl<'src> Interpreter {
         left_value,
         right_value,
       ))),
-      TokenType::Greater => Self::object_compare(left_value, right_value, operator, |x, y| x > y),
-      TokenType::Less => Self::object_compare(left_value, right_value, operator, |x, y| x < y),
-      TokenType::GreaterEqual => Self::object_compare(left_value,right_value, operator, |x, y| x >= y),
-      TokenType::LessEqual => Self::object_compare(left_value, right_value, operator, |x, y| x <= y),
+      TokenType::Greater => Self::object_compare(left_value, right_value, operator, |o| {
+        o == Ordering::Greater
+      }),
+      TokenType::Less => {
+        Self::object_compare(left_value, right_value, operator, |o| o == Ordering::Less)
+      }
+      TokenType::GreaterEqual => Self::object_compare(left_value, right_value, operator, |o| {
+        matches!(o, Ordering::Equal | Ordering::Greater)
+      }),
+      TokenType::LessEqual => Self::object_compare(left_value, right_value, operator, |o| {
+        matches!(o, Ordering::Equal | Ordering::Less)
+      }),
       _ => Err(RuntimeError {
         message: "Never run this line".to_string(),
         token: operator.clone(),
@@ -124,17 +134,27 @@ impl<'src> Interpreter {
     }
   }
 
-  fn object_multiply(left: Object, right: Object, token: &Token<'src>) -> Result<Object, RuntimeError<'src>> {
+  fn object_multiply(
+    left: Object,
+    right: Object,
+    token: &Token<'src>,
+  ) -> Result<Object, RuntimeError<'src>> {
     match (left, right) {
-      (Object::Number(l), Object::Number(r)) => Ok(Object::Number(l+r)),
+      (Object::Number(l), Object::Number(r)) => Ok(Object::Number(l + r)),
       (Object::String(s), Object::Number(num)) | (Object::Number(num), Object::String(s)) => {
         if let Some(num) = Self::as_repetition_count(num) {
           Ok(Object::String(s.repeat(num)))
         } else {
-          Err(RuntimeError { message: "String repetition count must be a non-negative integer".to_string(), token: token.clone() })
+          Err(RuntimeError {
+            message: "String repetition count must be a non-negative integer".to_string(),
+            token: token.clone(),
+          })
         }
       }
-    _ => Err(RuntimeError { message: format!("{} operator must be Number or String", token.lexeme()), token: token.clone() })
+      _ => Err(RuntimeError {
+        message: format!("{} operator must be Number or String", token.lexeme()),
+        token: token.clone(),
+      }),
     }
   }
 
@@ -150,12 +170,23 @@ impl<'src> Interpreter {
     left: Object,
     right: Object,
     token: &Token<'src>,
-    cmp: impl Fn(f64, f64) -> bool,
+    cmp: impl Fn(Ordering) -> bool,
   ) -> Result<Object, RuntimeError<'src>> {
-    match (left, right) {
-      (Object::Number(l), Object::Number(r)) => Ok(Object::Boolean(cmp(l, r))),
-      _ => Err(RuntimeError {
-        message: format!("'{}' must be used between Number", token.lexeme()),
+    let ordering = match (&left, &right) {
+      (Object::Number(l), Object::Number(r)) => l.partial_cmp(r),
+      (Object::String(l), Object::String(r)) => l.partial_cmp(r),
+      _ => {
+        return Err(RuntimeError {
+          message: "Operands must be both Numbers or both Strings".to_string(),
+          token: token.clone(),
+        });
+      }
+    };
+    match ordering {
+      Some(o) => Ok(Object::Boolean(cmp(o))),
+      None => Err(RuntimeError {
+        // NaN 等无法比较的情况
+        message: "Operands are not comparable".to_string(),
         token: token.clone(),
       }),
     }
@@ -191,6 +222,9 @@ mod test {
   fn test() {
     assert_eq!(Object::Boolean(false), get("1 >= 2"));
     assert_eq!(Object::Boolean(true), get("3 >= 3"));
-    assert_eq!(Object::String("HelloHelloHello".to_string()), get("3 * \"Hello\""));
+    assert_eq!(
+      Object::String("HelloHelloHello".to_string()),
+      get("3 * \"Hello\"")
+    );
   }
 }
