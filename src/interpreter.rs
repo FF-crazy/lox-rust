@@ -29,8 +29,8 @@ impl Environment {
       .scopes
       .last_mut()
       .expect("Always have a static variable");
-    if let Some(_) = values.get_mut(name) {
-      Err(format!("Variable '{}' declaration twice", name))
+    if values.contains_key(name) {
+      Err(format!("Variable '{}' is already declared in this scope ", name))
     } else {
       values.insert(name.to_string(), obj);
       Ok(())
@@ -74,14 +74,14 @@ impl Environment {
   }
 
   fn reassign(source: &mut Object, target: Object) -> Result<(), String> {
-    if source.get_type_name() == "Nil" || target.get_type_name() == "Nil" {
+    use std::mem::discriminant;
+    let same_type = discriminant(source) == discriminant(&target);
+    let either_nil = matches!(source, Object::Nil) || matches!(target, Object::Nil);
+    if same_type || either_nil {
       *source = target;
       Ok(())
-    } else if source.get_type_name() != target.get_type_name() {
-      Err(format!("Cannot assign '{}' to '{}'", target, source))
     } else {
-      *source = target;
-      Ok(())
+      Err(format!("Cannot assign '{}' to '{}'", target.get_type_name(), source.get_type_name()))
     }
   }
 }
@@ -116,13 +116,14 @@ impl Interpreter {
           Some(expr) => Some(self.evaluate(expr)?),
           None => None,
         };
-        if let Err(message) = self
-          .environment
-          .define_variable(name.lexeme(), value) {
-            Err(RuntimeError { message, token: name.clone() })
-          } else {
-            Ok(())
-          }
+        if let Err(message) = self.environment.define_variable(name.lexeme(), value) {
+          Err(RuntimeError {
+            message,
+            token: name.clone(),
+          })
+        } else {
+          Ok(())
+        }
       }
       Stmt::Block(stmts) => self.execute_block(stmts),
     }
