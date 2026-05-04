@@ -1,43 +1,81 @@
 use crate::{
-  error_handling::RuntimeError, expr::Expr, object::Object, stmt::Stmt, token::{Token, TokenType}
+  error_handling::RuntimeError,
+  expr::Expr,
+  object::Object,
+  stmt::Stmt,
+  token::{Token, TokenType},
 };
 
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
-pub struct Interpreter {}
+pub struct Interpreter {
+  environment: Environment,
+}
+
+struct Environment {
+  values: HashMap<String, Object>,
+}
+
+impl Environment {
+  pub fn new() -> Environment {
+    Environment {
+      values: HashMap::new(),
+    }
+  }
+
+  pub fn define_variable(&mut self, name: String, obj: Object) {
+    self.values.insert(name, obj);
+  }
+
+  pub fn read_variable(&self, name: &String) -> Option<Object> {
+    self.values.get(name).cloned()
+  }
+}
 
 impl<'src> Interpreter {
   pub fn new() -> Interpreter {
-    Interpreter {}
+    Interpreter {
+      environment: Environment::new(),
+    }
   }
 
-  pub fn interpret(&self, stmts: &Vec<Stmt<'src>>) -> Result<(), RuntimeError<'src>> {
+  pub fn interpret(&mut self, stmts: &Vec<Stmt<'src>>) -> Result<(), RuntimeError<'src>> {
     for stmt in stmts {
       self.execute_statement(stmt)?;
     }
     Ok(())
   }
 
-  fn execute_statement(&self, stmt: &Stmt<'src>) -> Result<(), RuntimeError<'src>> {
+  fn execute_statement(&mut self, stmt: &Stmt<'src>) -> Result<(), RuntimeError<'src>> {
     match stmt {
       Stmt::Expression(expr) => {
-        Self::evaluate(expr)?;
+        self.evaluate(expr)?;
         Ok(())
       }
       Stmt::Print(expr) => {
-        let value = Self::evaluate(expr)?;
+        let value = self.evaluate(expr)?;
         println!("{}", value);
+        Ok(())
+      }
+      Stmt::Var { name, initializer } => {
+        if let Some(expr) = initializer {
+          let res = self.evaluate(expr)?;
+          self.environment.define_variable(name.lexeme().to_string(), res);
+        } else {
+          self.environment.define_variable(name.lexeme().to_string(), Object::Nil);
+        }
         Ok(())
       }
     }
   }
 
-  fn evaluate(expr: &Expr<'src>) -> Result<Object, RuntimeError<'src>> {
+  fn evaluate(&mut self, expr: &Expr<'src>) -> Result<Object, RuntimeError<'src>> {
     match expr {
       Expr::Literal(value) => Ok(value.clone()),
-      Expr::Grouping(inner) => Self::evaluate(inner),
+      Expr::Grouping(inner) => self.evaluate(inner),
       Expr::Unary { operator, right } => {
-        let right_value = Self::evaluate(right)?;
+        let right_value = self.evaluate(right)?;
         Self::apply_unary(operator, right_value)
       }
       Expr::Binary {
@@ -45,10 +83,17 @@ impl<'src> Interpreter {
         operator,
         right,
       } => {
-        let left_value = Self::evaluate(left)?;
-        let right_value = Self::evaluate(right)?;
+        let left_value = self.evaluate(left)?;
+        let right_value = self.evaluate(right)?;
         Self::apply_binary(left_value, operator, right_value)
       }
+      Expr::Variable(name) => self
+        .environment
+        .read_variable(&name.lexeme().to_string())
+        .ok_or(RuntimeError {
+          message: format!("No such variable '{}'", name.lexeme()),
+          token: name.clone(),
+        }),
     }
   }
 
@@ -154,7 +199,7 @@ impl<'src> Interpreter {
     token: &Token<'src>,
   ) -> Result<Object, RuntimeError<'src>> {
     match (left, right) {
-      (Object::Number(l), Object::Number(r)) => Ok(Object::Number(l + r)),
+      (Object::Number(l), Object::Number(r)) => Ok(Object::Number(l * r)),
       (Object::String(s), Object::Number(num)) | (Object::Number(num), Object::String(s)) => {
         if let Some(num) = Self::as_repetition_count(num) {
           Ok(Object::String(s.repeat(num)))
@@ -228,11 +273,10 @@ mod test {
     let tokens = scan.scan_tokens().unwrap();
     let parser = Parser::new(tokens);
     let stmts = parser.parse().unwrap();
-    let i = Interpreter::new();
+    let mut i = Interpreter::new();
     i.interpret(&stmts);
   }
 
   #[test]
-  fn test() {
-  }
+  fn test() {}
 }

@@ -2,7 +2,7 @@ use std::env::args;
 use std::io::{self, Write, stdin};
 
 use lox::error_handling::LoxError;
-use lox::interpreter::Interpreter;
+use lox::interpreter::{self, Interpreter};
 use lox::parser::Parser;
 use lox::scanner::Scanner;
 
@@ -21,6 +21,7 @@ fn main() {
 
 fn repl() {
   let stdin = stdin();
+  let mut interpreter = Interpreter::new();
 
   loop {
     print!("> ");
@@ -34,13 +35,13 @@ fn repl() {
     if line.is_empty() {
       continue;
     }
-    match run(line) {
+    match run(line, &mut interpreter) {
       Ok(_) => {}
       Err(err) => {
         if let LoxError::Syntax(origin_err) = err {
           let line = try_format_input(line);
-          match run(&line) {
-            Ok(()) => {},
+          match run(&line, &mut interpreter) {
+            Ok(()) => {}
             Err(LoxError::Syntax(_)) => origin_err.report(),
             Err(other) => other.report(),
           }
@@ -65,7 +66,8 @@ fn try_format_input(input: &str) -> String {
 
 fn run_file(path: &str) -> io::Result<()> {
   let buf = std::fs::read_to_string(path)?;
-  match run(&buf) {
+  let mut interpreter = Interpreter::new();
+  match run(&buf, &mut interpreter) {
     Ok(_) => {}
     Err(err) => {
       err.report();
@@ -75,13 +77,11 @@ fn run_file(path: &str) -> io::Result<()> {
   Ok(())
 }
 
-fn run(source: &str) -> Result<(), LoxError<'_>> {
+fn run<'src>(source: &'src str, interpreter: &mut Interpreter) -> Result<(), LoxError<'src>> {
   let scanner = Scanner::new(source);
   let tokens = scanner.scan_tokens()?;
   let parser = Parser::new(tokens);
   let stmts = parser.parse()?;
-  let interpreter = Interpreter::new();
   interpreter.interpret(&stmts)?;
-
   Ok(())
 }

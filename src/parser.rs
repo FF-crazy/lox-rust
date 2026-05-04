@@ -1,5 +1,10 @@
 use crate::{
-  SyntaxError, error_handling::ErrorMessage, expr::Expr, object::Object, stmt::Stmt, token::{Token, TokenType}
+  SyntaxError,
+  error_handling::ErrorMessage,
+  expr::Expr,
+  object::Object,
+  stmt::Stmt,
+  token::{Token, TokenType},
 };
 
 pub struct Parser<'src> {
@@ -36,8 +41,34 @@ impl<'src> Parser<'src> {
   fn statement(&mut self) -> Result<Stmt<'src>, SyntaxError> {
     if self.match_one_of(&[TokenType::Print]).is_some() {
       self.print_statement()
+    } else if self.match_one_of(&[TokenType::Var]).is_some() {
+      self.var_declaration()
     } else {
       self.expression_statement()
+    }
+  }
+
+  fn expression_statement(&mut self) -> Result<Stmt<'src>, SyntaxError> {
+    let expr = self.expression()?;
+    self.consume(TokenType::SemiColon, "Expect ';' after expression")?;
+    Ok(Stmt::Expression(expr))
+  }
+
+  fn var_declaration(&mut self) -> Result<Stmt<'src>, SyntaxError> {
+    let name = self.consume(TokenType::Identifier, "Expect variable name here")?;
+    if self.match_one_of(&[TokenType::Assign]).is_some() {
+      let initializer = self.expression()?;
+      self.consume(TokenType::SemiColon, "Expect ';' after value")?;
+      Ok(Stmt::Var {
+        name,
+        initializer: Some(initializer),
+      })
+    } else {
+      self.consume(TokenType::SemiColon, "Expect ';' after value")?;
+      Ok(Stmt::Var {
+        name,
+        initializer: None,
+      })
     }
   }
 
@@ -47,14 +78,9 @@ impl<'src> Parser<'src> {
     Ok(Stmt::Print(value))
   }
 
-  fn expression_statement(&mut self) -> Result<Stmt<'src>, SyntaxError> {
-    let value = self.expression()?;
-    self.consume(TokenType::SemiColon, "Expect ';' after value")?;
-    Ok(Stmt::Expression(value))
-  }
-
   fn expression(&mut self) -> Result<Expr<'src>, SyntaxError> {
-    self.equality()
+    let value = self.equality()?;
+    Ok(value)
   }
 
   fn equality(&mut self) -> Result<Expr<'src>, SyntaxError> {
@@ -143,6 +169,11 @@ impl<'src> Parser<'src> {
       self.consume(TokenType::RightParen, "expected ')' after expression")?;
       return Ok(Expr::Grouping(Box::new(expr)));
     }
+    // Identifier
+    if let Some(identifier) = self.match_one_of(&[TokenType::Identifier]) {
+      return Ok(Expr::Variable(identifier));
+    }
+
     Err(SyntaxError::new(
       ErrorMessage::ExpectedExpression,
       self.current_line(),
