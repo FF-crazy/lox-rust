@@ -9,8 +9,5 @@ pub enum Stmt<'src> {
     name: Token<'src>,
     initializer: Option<Expr<'src>>,
   },
-  Assign {
-    
-  },
   Block(Vec<Stmt<'src>>),
 }

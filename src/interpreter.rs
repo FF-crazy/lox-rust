@@ -45,6 +45,16 @@ impl Environment {
     None
   }
 
+  pub fn assign_value(&mut self, name: &str, value: Object) -> Result<(), String> {
+    for scope in self.scopes.iter_mut().rev() {
+      if let Some(slot) = scope.get_mut(name) {
+        *slot = Some(value);
+        return Ok(());
+      }
+    }
+    Err(format!("Undefined variable '{}'", name))
+  }
+
   pub fn in_scope(&mut self) {
     self.scopes.push(HashMap::new());
   }
@@ -132,6 +142,17 @@ impl Interpreter {
             message: format!("Undefined variable '{}'", name.lexeme()),
             token: name.clone(),
           })
+        }
+      }
+      Expr::Assign { name, value } => {
+        let value = self.evaluate(value)?;
+        if let Err(error_message) = self.environment.assign_value(name.lexeme(), value.clone()) {
+          Err(RuntimeError{
+            message: error_message,
+            token: name.clone(),
+          })
+        } else {
+          Ok(value)
         }
       }
     }

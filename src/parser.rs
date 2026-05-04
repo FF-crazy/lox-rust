@@ -93,8 +93,28 @@ impl<'src> Parser<'src> {
   }
 
   fn expression(&mut self) -> Result<Expr<'src>, SyntaxError> {
-    let value = self.equality()?;
-    Ok(value)
+    self.assignment()
+  }
+
+  fn assignment(&mut self) -> Result<Expr<'src>, SyntaxError> {
+    // 先解析左边
+    let expr = self.equality()?;
+
+    // 递归解析右面
+    if self.match_one_of(&[TokenType::Assign]).is_some() {
+      let value = self.assignment()?;
+      if let Expr::Variable(name) = expr {
+        Ok(Expr::Assign {
+          name,
+          value: Box::new(value),
+        })
+      } else {
+        Err(SyntaxError::new(ErrorMessage::InvalidAssignmentTarget, self.current_line()))
+      }
+    } else {
+      Ok(expr)
+    }
+
   }
 
   fn equality(&mut self) -> Result<Expr<'src>, SyntaxError> {

@@ -118,6 +118,7 @@ pub enum ErrorMessage {
   UnterminatedComment,
   ExpectedExpression,
   ExpectedToken(TokenType),
+  InvalidAssignmentTarget,
 }
 
 impl Display for ErrorMessage {
@@ -128,6 +129,7 @@ impl Display for ErrorMessage {
       Self::UnterminatedComment => f.write_str("unterminated block comment"),
       Self::ExpectedExpression => f.write_str("Not a valid expression"),
       Self::ExpectedToken(t) => write!(f, "expected token '{}'", t),
+      Self::InvalidAssignmentTarget => f.write_str("Not a valid assign statement"),
     }
   }
 }

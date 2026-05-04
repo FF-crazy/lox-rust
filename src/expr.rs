@@ -15,6 +15,10 @@ pub enum Expr<'src> {
     right: Box<Expr<'src>>,
   },
   Variable(Token<'src>),
+  Assign {
+    name: Token<'src>,
+    value: Box<Expr<'src>>,
+  }
 }
 
 impl<'src> fmt::Display for Expr<'src> {
@@ -31,7 +35,9 @@ impl<'src> fmt::Display for Expr<'src> {
         write!(f, "({} {} {})", operator.lexeme(), left, right)
       }
       Expr::Variable(var) => write!(f, "{}", var),
+      Expr::Assign { name, value } => write!(f, "{} = {}", name, value)
     }
+    
   }
 }
 
