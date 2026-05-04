@@ -1,9 +1,5 @@
 use crate::{
-  SyntaxError,
-  error_handling::ErrorMessage,
-  expr::Expr,
-  object::Object,
-  token::{Token, TokenType},
+  SyntaxError, error_handling::ErrorMessage, expr::Expr, object::Object, stmt::Stmt, token::{Token, TokenType}
 };
 
 pub struct Parser<'src> {
@@ -29,8 +25,32 @@ impl<'src> Parser<'src> {
     Parser { tokens, current: 0 }
   }
 
-  pub fn parse(mut self) -> Result<Expr<'src>, SyntaxError> {
-    self.expression()
+  pub fn parse(mut self) -> Result<Vec<Stmt<'src>>, SyntaxError> {
+    let mut stmts = Vec::new();
+    while self.peek().is_some() {
+      stmts.push(self.statement()?);
+    }
+    Ok(stmts)
+  }
+
+  fn statement(&mut self) -> Result<Stmt<'src>, SyntaxError> {
+    if self.match_one_of(&[TokenType::Print]).is_some() {
+      self.print_statement()
+    } else {
+      self.expression_statement()
+    }
+  }
+
+  fn print_statement(&mut self) -> Result<Stmt<'src>, SyntaxError> {
+    let value = self.expression()?;
+    self.consume(TokenType::SemiColon, "Expect ';' after value")?;
+    Ok(Stmt::Print(value))
+  }
+
+  fn expression_statement(&mut self) -> Result<Stmt<'src>, SyntaxError> {
+    let value = self.expression()?;
+    self.consume(TokenType::SemiColon, "Expect ';' after value")?;
+    Ok(Stmt::Expression(value))
   }
 
   fn expression(&mut self) -> Result<Expr<'src>, SyntaxError> {
@@ -178,7 +198,7 @@ mod tests {
   fn parse(src: &str) -> String {
     let tokens = Scanner::new(src).scan_tokens().unwrap();
     let expr = Parser::new(tokens).parse().unwrap();
-    format!("{}", expr)
+    format!("{:?}", expr)
   }
 
   #[test]

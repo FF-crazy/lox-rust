@@ -32,15 +32,35 @@ fn repl() {
     }
     let line = line.trim_end();
     if line.is_empty() {
-      break;
+      continue;
     }
-    match run(&line.to_string()) {
+    match run(line) {
       Ok(_) => {}
       Err(err) => {
-        err.report();
+        if let LoxError::Syntax(origin_err) = err {
+          let line = try_format_input(line);
+          match run(&line) {
+            Ok(()) => {},
+            Err(LoxError::Syntax(_)) => origin_err.report(),
+            Err(other) => other.report(),
+          }
+        } else {
+          err.report();
+        }
       }
     }
   }
+}
+
+fn try_format_input(input: &str) -> String {
+  let mut res = input.to_string();
+  if !input.ends_with(";") {
+    res = format!("{};", res);
+  }
+  if !input.starts_with("print ") {
+    res = format!("print {}", res);
+  }
+  res
 }
 
 fn run_file(path: &str) -> io::Result<()> {
@@ -59,10 +79,9 @@ fn run(source: &str) -> Result<(), LoxError<'_>> {
   let scanner = Scanner::new(source);
   let tokens = scanner.scan_tokens()?;
   let parser = Parser::new(tokens);
-  let expr = parser.parse()?;
+  let stmts = parser.parse()?;
   let interpreter = Interpreter::new();
-  let val = interpreter.execute(&expr)?;
-  println!("{}", val);
+  interpreter.interpret(&stmts)?;
 
   Ok(())
 }

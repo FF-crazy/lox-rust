@@ -103,6 +103,12 @@ impl<'src> Display for RuntimeError<'src> {
   }
 }
 
+impl<'src> RuntimeError<'src> {
+  pub fn report(&self) {
+    eprintln!("{self}");
+  }
+}
+
 impl<'src> Error for RuntimeError<'src> {}
 
 #[derive(Debug)]

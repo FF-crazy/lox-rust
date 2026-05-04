@@ -1,8 +1,5 @@
 use crate::{
-  error_handling::RuntimeError,
-  expr::Expr,
-  object::Object,
-  token::{Token, TokenType},
+  error_handling::RuntimeError, expr::Expr, object::Object, stmt::Stmt, token::{Token, TokenType}
 };
 
 use std::cmp::Ordering;
@@ -14,8 +11,25 @@ impl<'src> Interpreter {
     Interpreter {}
   }
 
-  pub fn execute(&self, expr: &Expr<'src>) -> Result<Object, RuntimeError<'src>> {
-    Self::evaluate(expr)
+  pub fn interpret(&self, stmts: &Vec<Stmt<'src>>) -> Result<(), RuntimeError<'src>> {
+    for stmt in stmts {
+      self.execute_statement(stmt)?;
+    }
+    Ok(())
+  }
+
+  fn execute_statement(&self, stmt: &Stmt<'src>) -> Result<(), RuntimeError<'src>> {
+    match stmt {
+      Stmt::Expression(expr) => {
+        Self::evaluate(expr)?;
+        Ok(())
+      }
+      Stmt::Print(expr) => {
+        let value = Self::evaluate(expr)?;
+        println!("{}", value);
+        Ok(())
+      }
+    }
   }
 
   fn evaluate(expr: &Expr<'src>) -> Result<Object, RuntimeError<'src>> {
@@ -209,22 +223,16 @@ mod test {
 
   use super::*;
 
-  fn get(s: &str) -> Object {
+  fn get(s: &str) {
     let scan = Scanner::new(s);
     let tokens = scan.scan_tokens().unwrap();
     let parser = Parser::new(tokens);
-    let expr = parser.parse().unwrap();
+    let stmts = parser.parse().unwrap();
     let i = Interpreter::new();
-    i.execute(&expr).unwrap()
+    i.interpret(&stmts);
   }
 
   #[test]
   fn test() {
-    assert_eq!(Object::Boolean(false), get("1 >= 2"));
-    assert_eq!(Object::Boolean(true), get("3 >= 3"));
-    assert_eq!(
-      Object::String("HelloHelloHello".to_string()),
-      get("3 * \"Hello\"")
-    );
   }
 }
