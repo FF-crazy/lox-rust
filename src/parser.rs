@@ -43,9 +43,23 @@ impl<'src> Parser<'src> {
       self.print_statement()
     } else if self.match_one_of(&[TokenType::Var]).is_some() {
       self.var_declaration()
+    } else if self.match_one_of(&[TokenType::LeftBrace]).is_some() {
+      self.block().map(Stmt::Block)
     } else {
       self.expression_statement()
     }
+  }
+
+  fn block(&mut self) -> Result<Vec<Stmt<'src>>, SyntaxError> {
+    let mut stmts = Vec::new();
+    while let Some(inner) = self.peek() {
+      if inner.ttype() == TokenType::RightBrace {
+        break;
+      }
+      stmts.push(self.statement()?);
+    }
+    self.consume(TokenType::RightBrace, "Expect '}' after block")?;
+    Ok(stmts)
   }
 
   fn expression_statement(&mut self) -> Result<Stmt<'src>, SyntaxError> {
@@ -228,8 +242,12 @@ mod tests {
 
   fn parse(src: &str) -> String {
     let tokens = Scanner::new(src).scan_tokens().unwrap();
-    let expr = Parser::new(tokens).parse().unwrap();
-    format!("{:?}", expr)
+    let stmts = Parser::new(tokens).parse().unwrap();
+    let mut res = String::new();
+    for stmt in stmts {
+      res = format!("res {:?}", stmt);
+    }
+    res
   }
 
   #[test]

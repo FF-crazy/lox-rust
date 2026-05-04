@@ -1,3 +1,4 @@
+
 use crate::{expr::Expr, token::Token};
 
 #[derive(Debug)]
@@ -8,4 +9,8 @@ pub enum Stmt<'src> {
     name: Token<'src>,
     initializer: Option<Expr<'src>>,
   },
+  Assign {
+    
+  },
+  Block(Vec<Stmt<'src>>),
 }

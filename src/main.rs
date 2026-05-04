@@ -2,7 +2,7 @@ use std::env::args;
 use std::io::{self, Write, stdin};
 
 use lox::error_handling::LoxError;
-use lox::interpreter::{self, Interpreter};
+use lox::interpreter::Interpreter;
 use lox::parser::Parser;
 use lox::scanner::Scanner;
 

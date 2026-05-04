@@ -14,40 +14,62 @@ pub struct Interpreter {
 }
 
 struct Environment {
-  values: HashMap<String, Option<Object>>,
+  scopes: Vec<HashMap<String, Option<Object>>>,
 }
 
 impl Environment {
   pub fn new() -> Environment {
     Environment {
-      values: HashMap::new(),
+      scopes: vec![HashMap::new()],
     }
   }
 
   pub fn define_variable(&mut self, name: String, obj: Option<Object>) {
-    self.values.insert(name, obj);
+    self
+      .scopes
+      .last_mut()
+      .expect("Always have a static variable")
+      .insert(name, obj);
   }
 
-  pub fn read_variable(&self, name: &String) -> Option<Option<Object>> {
-    self.values.get(name).cloned()
+  pub fn get_variable(&self, name: &str) -> Option<Option<Object>> {
+    for scope in self.scopes.iter().rev() {
+      if let Some(slot) = scope.get(name) {
+        if slot.is_some() {
+          return Some(slot.clone());
+        } else {
+          return Some(None);
+        }
+      }
+    }
+    None
+  }
+
+  pub fn in_scope(&mut self) {
+    self.scopes.push(HashMap::new());
+  }
+
+  pub fn out_scope(&mut self) {
+    self.scopes.pop();
+    debug_assert!(!self.scopes.is_empty(), "popped global scope")
   }
 }
 
-impl<'src> Interpreter {
+impl Interpreter {
   pub fn new() -> Interpreter {
     Interpreter {
       environment: Environment::new(),
     }
   }
 
-  pub fn interpret(&mut self, stmts: &Vec<Stmt<'src>>) -> Result<(), RuntimeError<'src>> {
+  pub fn interpret<'src>(&mut self, stmts: &Vec<Stmt<'src>>) -> Result<(), RuntimeError<'src>> {
     for stmt in stmts {
       self.execute_statement(stmt)?;
     }
     Ok(())
   }
 
-  fn execute_statement(&mut self, stmt: &Stmt<'src>) -> Result<(), RuntimeError<'src>> {
+  fn execute_statement<'src>(&mut self, stmt: &Stmt<'src>) -> Result<(), RuntimeError<'src>> {
     match stmt {
       Stmt::Expression(expr) => {
         self.evaluate(expr)?;
@@ -59,22 +81,27 @@ impl<'src> Interpreter {
         Ok(())
       }
       Stmt::Var { name, initializer } => {
-        if let Some(expr) = initializer {
-          let res = self.evaluate(expr)?;
-          self
-            .environment
-            .define_variable(name.lexeme().to_string(), Some(res));
-        } else {
-          self
-            .environment
-            .define_variable(name.lexeme().to_string(), None);
-        }
+        let value = match initializer {
+          Some(expr) => Some(self.evaluate(expr)?),
+          None => None,
+        };
+        self
+          .environment
+          .define_variable(name.lexeme().to_string(), value);
         Ok(())
       }
+      Stmt::Block(stmts) => self.execute_block(stmts),
     }
   }
 
-  fn evaluate(&mut self, expr: &Expr<'src>) -> Result<Object, RuntimeError<'src>> {
+  fn execute_block<'src>(&mut self, stmts: &Vec<Stmt<'src>>) -> Result<(), RuntimeError<'src>> {
+    self.environment.in_scope();
+    let res = stmts.iter().try_for_each(|s| self.execute_statement(s));
+    self.environment.out_scope();
+    res
+  }
+
+  fn evaluate<'src>(&mut self, expr: &Expr<'src>) -> Result<Object, RuntimeError<'src>> {
     match expr {
       Expr::Literal(value) => Ok(value.clone()),
       Expr::Grouping(inner) => self.evaluate(inner),
@@ -92,7 +119,7 @@ impl<'src> Interpreter {
         Self::apply_binary(left_value, operator, right_value)
       }
       Expr::Variable(name) => {
-        if let Some(var) = self.environment.read_variable(&name.lexeme().to_string()) {
+        if let Some(var) = self.environment.get_variable(name.lexeme()) {
           var.ok_or(RuntimeError {
             message: format!(
               "Variable '{}' is used before assign it a value",
@@ -110,7 +137,7 @@ impl<'src> Interpreter {
     }
   }
 
-  fn apply_unary(
+  fn apply_unary<'src>(
     operator: &Token<'src>,
     right_value: Object,
   ) -> Result<Object, RuntimeError<'src>> {
@@ -124,7 +151,7 @@ impl<'src> Interpreter {
     }
   }
 
-  fn object_minus(
+  fn object_minus<'src>(
     right_value: Object,
     operator: &Token<'src>,
   ) -> Result<Object, RuntimeError<'src>> {
@@ -145,7 +172,7 @@ impl<'src> Interpreter {
     }
   }
 
-  fn apply_binary(
+  fn apply_binary<'src>(
     left_value: Object,
     operator: &Token<'src>,
     right_value: Object,
@@ -191,7 +218,7 @@ impl<'src> Interpreter {
     }
   }
 
-  fn object_plus(
+  fn object_plus<'src>(
     left: Object,
     right: Object,
     token: &Token<'src>,
@@ -206,7 +233,7 @@ impl<'src> Interpreter {
     }
   }
 
-  fn object_multiply(
+  fn object_multiply<'src>(
     left: Object,
     right: Object,
     token: &Token<'src>,
@@ -238,7 +265,7 @@ impl<'src> Interpreter {
     }
   }
 
-  fn object_compare(
+  fn object_compare<'src>(
     left: Object,
     right: Object,
     token: &Token<'src>,
