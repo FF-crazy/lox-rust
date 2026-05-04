@@ -24,12 +24,17 @@ impl Environment {
     }
   }
 
-  pub fn define_variable(&mut self, name: String, obj: Option<Object>) {
-    self
+  pub fn define_variable(&mut self, name: &str, obj: Option<Object>) -> Result<(), String> {
+    let values = self
       .scopes
       .last_mut()
-      .expect("Always have a static variable")
-      .insert(name, obj);
+      .expect("Always have a static variable");
+    if let Some(_) = values.get_mut(name) {
+      Err(format!("Variable '{}' declaration twice", name))
+    } else {
+      values.insert(name.to_string(), obj);
+      Ok(())
+    }
   }
 
   pub fn get_variable(&self, name: &str) -> Option<Option<Object>> {
@@ -48,7 +53,11 @@ impl Environment {
   pub fn assign_value(&mut self, name: &str, value: Object) -> Result<(), String> {
     for scope in self.scopes.iter_mut().rev() {
       if let Some(slot) = scope.get_mut(name) {
-        *slot = Some(value);
+        if let Some(source) = slot {
+          Self::reassign(source, value)?;
+        } else {
+          *slot = Some(value)
+        }
         return Ok(());
       }
     }
@@ -62,6 +71,18 @@ impl Environment {
   pub fn out_scope(&mut self) {
     self.scopes.pop();
     debug_assert!(!self.scopes.is_empty(), "popped global scope")
+  }
+
+  fn reassign(source: &mut Object, target: Object) -> Result<(), String> {
+    if source.get_type_name() == "Nil" || target.get_type_name() == "Nil" {
+      *source = target;
+      Ok(())
+    } else if source.get_type_name() != target.get_type_name() {
+      Err(format!("Cannot assign '{}' to '{}'", target, source))
+    } else {
+      *source = target;
+      Ok(())
+    }
   }
 }
 
@@ -95,10 +116,13 @@ impl Interpreter {
           Some(expr) => Some(self.evaluate(expr)?),
           None => None,
         };
-        self
+        if let Err(message) = self
           .environment
-          .define_variable(name.lexeme().to_string(), value);
-        Ok(())
+          .define_variable(name.lexeme(), value) {
+            Err(RuntimeError { message, token: name.clone() })
+          } else {
+            Ok(())
+          }
       }
       Stmt::Block(stmts) => self.execute_block(stmts),
     }
@@ -147,7 +171,7 @@ impl Interpreter {
       Expr::Assign { name, value } => {
         let value = self.evaluate(value)?;
         if let Err(error_message) = self.environment.assign_value(name.lexeme(), value.clone()) {
-          Err(RuntimeError{
+          Err(RuntimeError {
             message: error_message,
             token: name.clone(),
           })
