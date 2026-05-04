@@ -14,7 +14,7 @@ pub struct Interpreter {
 }
 
 struct Environment {
-  values: HashMap<String, Object>,
+  values: HashMap<String, Option<Object>>,
 }
 
 impl Environment {
@@ -24,11 +24,11 @@ impl Environment {
     }
   }
 
-  pub fn define_variable(&mut self, name: String, obj: Object) {
+  pub fn define_variable(&mut self, name: String, obj: Option<Object>) {
     self.values.insert(name, obj);
   }
 
-  pub fn read_variable(&self, name: &String) -> Option<Object> {
+  pub fn read_variable(&self, name: &String) -> Option<Option<Object>> {
     self.values.get(name).cloned()
   }
 }
@@ -61,9 +61,13 @@ impl<'src> Interpreter {
       Stmt::Var { name, initializer } => {
         if let Some(expr) = initializer {
           let res = self.evaluate(expr)?;
-          self.environment.define_variable(name.lexeme().to_string(), res);
+          self
+            .environment
+            .define_variable(name.lexeme().to_string(), Some(res));
         } else {
-          self.environment.define_variable(name.lexeme().to_string(), Object::Nil);
+          self
+            .environment
+            .define_variable(name.lexeme().to_string(), None);
         }
         Ok(())
       }
@@ -87,13 +91,22 @@ impl<'src> Interpreter {
         let right_value = self.evaluate(right)?;
         Self::apply_binary(left_value, operator, right_value)
       }
-      Expr::Variable(name) => self
-        .environment
-        .read_variable(&name.lexeme().to_string())
-        .ok_or(RuntimeError {
-          message: format!("No such variable '{}'", name.lexeme()),
-          token: name.clone(),
-        }),
+      Expr::Variable(name) => {
+        if let Some(var) = self.environment.read_variable(&name.lexeme().to_string()) {
+          var.ok_or(RuntimeError {
+            message: format!(
+              "Variable '{}' is used before assign it a value",
+              name.lexeme()
+            ),
+            token: name.clone(),
+          })
+        } else {
+          Err(RuntimeError {
+            message: format!("Undefined variable '{}'", name.lexeme()),
+            token: name.clone(),
+          })
+        }
+      }
     }
   }
 
