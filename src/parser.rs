@@ -45,9 +45,34 @@ impl<'src> Parser<'src> {
       self.var_declaration()
     } else if self.match_one_of(&[TokenType::LeftBrace]).is_some() {
       self.block().map(Stmt::Block)
+    } else if let Some(keyword) = self.match_one_of(&[TokenType::If]) {
+      self.if_statement(keyword)
     } else {
       self.expression_statement()
     }
+  }
+
+  fn if_statement(&mut self, keyword: Token<'src>) -> Result<Stmt<'src>, SyntaxError> {
+    let condition = self.expression()?;
+    self.consume(TokenType::LeftBrace, "Expect '{' after if condition")?;
+    let then_branch = self.block()?;
+    let else_branch = if self.match_one_of(&[TokenType::Else]).is_some() {
+      if let Some(keyword) = self.match_one_of(&[TokenType::If]) {
+        Some(vec![self.if_statement(keyword)?])
+      } else {
+        self.consume(TokenType::LeftBrace, "Expect '{' after else")?;
+        Some(self.block()?)
+      }
+    } else {
+      None
+    };
+    
+    Ok(Stmt::If {
+      keyword,
+      condition,
+      then_branch,
+      else_branch,
+    })
   }
 
   fn block(&mut self) -> Result<Vec<Stmt<'src>>, SyntaxError> {
@@ -109,12 +134,14 @@ impl<'src> Parser<'src> {
           value: Box::new(value),
         })
       } else {
-        Err(SyntaxError::new(ErrorMessage::InvalidAssignmentTarget, self.current_line()))
+        Err(SyntaxError::new(
+          ErrorMessage::InvalidAssignmentTarget,
+          self.current_line(),
+        ))
       }
     } else {
       Ok(expr)
     }
-
   }
 
   fn equality(&mut self) -> Result<Expr<'src>, SyntaxError> {

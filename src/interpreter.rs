@@ -126,6 +126,16 @@ impl Interpreter {
         }
       }
       Stmt::Block(stmts) => self.execute_block(stmts),
+      Stmt::If { keyword, condition, then_branch, else_branch } => {
+        let condition = self.evaluate(condition)?;
+        if Self::object_equal(&condition, &Object::Boolean(true), &keyword)? {
+          self.execute_block(then_branch)
+        } else if let Some(else_branch) = else_branch {
+            self.execute_block(else_branch)
+        } else {
+          Ok(())
+        }
+      }
     }
   }
 
@@ -188,7 +198,7 @@ impl Interpreter {
     right_value: Object,
   ) -> Result<Object, RuntimeError<'src>> {
     match operator.ttype() {
-      TokenType::Bang => Ok(Self::object_bang(right_value)),
+      TokenType::Bang => Ok(Self::object_bang(&right_value, operator)?),
       TokenType::Minus => Self::object_minus(right_value, operator),
       _ => Err(RuntimeError {
         message: "Never run this line".to_string(),
@@ -197,26 +207,7 @@ impl Interpreter {
     }
   }
 
-  fn object_minus<'src>(
-    right_value: Object,
-    operator: &Token<'src>,
-  ) -> Result<Object, RuntimeError<'src>> {
-    match right_value {
-      Object::Number(value) => Ok(Object::Number(-value)),
-      _ => Err(RuntimeError {
-        message: String::from("Operand must be a Number"),
-        token: operator.clone(),
-      }),
-    }
-  }
-
-  fn object_bang(right_value: Object) -> Object {
-    match right_value {
-      Object::Number(_) | Object::String(_) => Object::Boolean(false),
-      Object::Nil => Object::Boolean(true),
-      Object::Boolean(flag) => Object::Boolean(!flag),
-    }
-  }
+  
 
   fn apply_binary<'src>(
     left_value: Object,
@@ -240,11 +231,15 @@ impl Interpreter {
           token: operator.clone(),
         }),
       },
-      TokenType::Equal => Ok(Object::Boolean(Self::object_equal(left_value, right_value))),
-      TokenType::BangEqual => Ok(Object::Boolean(!Self::object_equal(
-        left_value,
-        right_value,
-      ))),
+      TokenType::Equal => Ok(Object::Boolean(Self::object_equal(&left_value, &right_value, operator)?)),
+      TokenType::BangEqual => {
+        let res = Self::object_equal(
+        &left_value,
+        &right_value,
+        operator
+      )?;
+      Ok(Object::Boolean(!res))
+      }
       TokenType::Greater => Self::object_compare(left_value, right_value, operator, |o| {
         o == Ordering::Greater
       }),
@@ -276,6 +271,27 @@ impl Interpreter {
         message: "'+' Operand must be Number or String".to_string(),
         token: token.clone(),
       }),
+    }
+  }
+
+  fn object_minus<'src>(
+    right_value: Object,
+    operator: &Token<'src>,
+  ) -> Result<Object, RuntimeError<'src>> {
+    match right_value {
+      Object::Number(value) => Ok(Object::Number(-value)),
+      _ => Err(RuntimeError {
+        message: String::from("Operand must be a Number"),
+        token: operator.clone(),
+      }),
+    }
+  }
+
+  fn object_bang<'src>(right_value: &Object, token: &Token<'src>) -> Result<Object, RuntimeError<'src>> {
+    match right_value {
+      Object::Nil => Ok(Object::Boolean(true)),
+      Object::Boolean(flag) => Ok(Object::Boolean(!flag)),
+      _ => Err(RuntimeError { message: format!("Cannot reverse type '{}'", right_value.get_type_name()) , token: token.clone() })
     }
   }
 
@@ -337,13 +353,14 @@ impl Interpreter {
     }
   }
 
-  fn object_equal(left: Object, right: Object) -> bool {
+  fn object_equal<'src>(left: &Object, right: &Object, token: &Token<'src>) -> Result<bool, RuntimeError<'src>> {
     match (left, right) {
-      (Object::Number(l), Object::Number(r)) => l == r,
-      (Object::Boolean(l), Object::Boolean(r)) => l == r,
-      (Object::String(l), Object::String(r)) => l == r,
-      (Object::Nil, Object::Nil) => true,
-      _ => false,
+      (Object::Number(l), Object::Number(r)) => Ok(l == r),
+      (Object::Boolean(l), Object::Boolean(r)) => Ok(l == r),
+      (Object::String(l), Object::String(r)) => Ok(l == r),
+      (Object::Nil, Object::Nil) => Ok(true),
+      (Object::Nil, _) | (_, Object::Nil) => Ok(false),
+      _ => Err(RuntimeError { message: format!("Cannot compare '{}' with '{}'", left.get_type_name(), right.get_type_name()), token: token.clone() })
     }
   }
 }

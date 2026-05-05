@@ -10,4 +10,10 @@ pub enum Stmt<'src> {
     initializer: Option<Expr<'src>>,
   },
   Block(Vec<Stmt<'src>>),
+  If {
+    keyword: Token<'src>,
+    condition: Expr<'src>,
+    then_branch: Vec<Stmt<'src>>,
+    else_branch: Option<Vec<Stmt<'src>>>,
+  }
 }
