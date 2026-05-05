@@ -47,9 +47,18 @@ impl<'src> Parser<'src> {
       self.block().map(Stmt::Block)
     } else if let Some(keyword) = self.match_one_of(&[TokenType::If]) {
       self.if_statement(keyword)
+    } else if let Some(keyword) = self.match_one_of(&[TokenType::While]) {
+      self.while_statement(keyword)
     } else {
       self.expression_statement()
     }
+  }
+
+  fn while_statement(&mut self, keyword: Token<'src>) -> Result<Stmt<'src>, SyntaxError> {
+    let condition = self.expression()?;
+    self.consume(TokenType::LeftBrace, "Expect '{' after while condition")?;
+    let body = self.block()?;
+    Ok(Stmt::While { keyword, condition, body })
   }
 
   fn if_statement(&mut self, keyword: Token<'src>) -> Result<Stmt<'src>, SyntaxError> {

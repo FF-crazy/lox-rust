@@ -1,7 +1,18 @@
-var 字符串 = "我是一个字符串";
-var 我是布尔值 = true;
-if 我是布尔值 {
-  print 字符串;
-} else {
-  print "我不是字符串";
+var a = 1;
+var b = 1;
+var t = 3;
+print "斐波那契数列的第 1 项是 1";
+print "斐波那契数列的第 2 项是 1";
+while t <= 10 {
+  var temp = a + b;
+  a = b;
+  b = temp;
+  print "斐波那契数列的第 ";
+  print t;
+  print " 项是 ";
+  print b;
+  if t == 5 {
+    print "这是 if statement 测试";
+  }
+  t = t + 1;
 }

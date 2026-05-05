@@ -15,5 +15,10 @@ pub enum Stmt<'src> {
     condition: Expr<'src>,
     then_branch: Vec<Stmt<'src>>,
     else_branch: Option<Vec<Stmt<'src>>>,
+  },
+  While {
+    keyword: Token<'src>,
+    condition: Expr<'src>,
+    body: Vec<Stmt<'src>>,
   }
 }
