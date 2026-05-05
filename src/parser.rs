@@ -66,7 +66,7 @@ impl<'src> Parser<'src> {
     } else {
       None
     };
-    
+
     Ok(Stmt::If {
       keyword,
       condition,
@@ -123,7 +123,7 @@ impl<'src> Parser<'src> {
 
   fn assignment(&mut self) -> Result<Expr<'src>, SyntaxError> {
     // 先解析左边
-    let expr = self.equality()?;
+    let expr = self.logic_or()?;
 
     // 递归解析右面
     if self.match_one_of(&[TokenType::Assign]).is_some() {
@@ -142,6 +142,32 @@ impl<'src> Parser<'src> {
     } else {
       Ok(expr)
     }
+  }
+
+  fn logic_or(&mut self) -> Result<Expr<'src>, SyntaxError> {
+    let mut expr = self.logic_and()?;
+    while let Some(operator) = self.match_one_of(&[TokenType::Or]) {
+      let right = self.logic_and()?;
+      expr = Expr::Logical {
+        left: Box::new(expr),
+        operator,
+        right: Box::new(right),
+      };
+    }
+    Ok(expr)
+  }
+
+  fn logic_and(&mut self) -> Result<Expr<'src>, SyntaxError> {
+    let mut expr = self.equality()?;
+    while let Some(operator) = self.match_one_of(&[TokenType::And]) {
+      let right = self.equality()?;
+      expr = Expr::Logical {
+        left: Box::new(expr),
+        operator,
+        right: Box::new(right),
+      };
+    }
+    Ok(expr)
   }
 
   fn equality(&mut self) -> Result<Expr<'src>, SyntaxError> {

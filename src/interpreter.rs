@@ -30,7 +30,10 @@ impl Environment {
       .last_mut()
       .expect("Always have a static variable");
     if values.contains_key(name) {
-      Err(format!("Variable '{}' is already declared in this scope ", name))
+      Err(format!(
+        "Variable '{}' is already declared in this scope ",
+        name
+      ))
     } else {
       values.insert(name.to_string(), obj);
       Ok(())
@@ -81,7 +84,11 @@ impl Environment {
       *source = target;
       Ok(())
     } else {
-      Err(format!("Cannot assign '{}' to '{}'", target.get_type_name(), source.get_type_name()))
+      Err(format!(
+        "Cannot assign '{}' to '{}'",
+        target.get_type_name(),
+        source.get_type_name()
+      ))
     }
   }
 }
@@ -126,12 +133,18 @@ impl Interpreter {
         }
       }
       Stmt::Block(stmts) => self.execute_block(stmts),
-      Stmt::If { keyword, condition, then_branch, else_branch } => {
+      Stmt::If {
+        keyword,
+        condition,
+        then_branch,
+        else_branch,
+      } => {
         let condition = self.evaluate(condition)?;
-        if Self::object_equal(&condition, &Object::Boolean(true), &keyword)? {
+        let cond = Self::require_bool_or_nil(&condition, &keyword)?;
+        if cond {
           self.execute_block(then_branch)
         } else if let Some(else_branch) = else_branch {
-            self.execute_block(else_branch)
+          self.execute_block(else_branch)
         } else {
           Ok(())
         }
@@ -190,6 +203,23 @@ impl Interpreter {
           Ok(value)
         }
       }
+      Expr::Logical {
+        left,
+        operator,
+        right,
+      } => {
+        let left_val = self.evaluate(left)?;
+        let left_bool = Self::require_bool_or_nil(&left_val, operator)?;
+        let res = match operator.ttype() {
+          TokenType::Or if left_bool => true,    // 短路
+          TokenType::And if !left_bool => false, // 短路
+          _ => {
+            let right_val = self.evaluate(right)?;
+            Self::require_bool_or_nil(&right_val, operator)?
+          }
+        };
+        Ok(Object::Boolean(res))
+      }
     }
   }
 
@@ -206,8 +236,6 @@ impl Interpreter {
       }),
     }
   }
-
-  
 
   fn apply_binary<'src>(
     left_value: Object,
@@ -231,14 +259,14 @@ impl Interpreter {
           token: operator.clone(),
         }),
       },
-      TokenType::Equal => Ok(Object::Boolean(Self::object_equal(&left_value, &right_value, operator)?)),
-      TokenType::BangEqual => {
-        let res = Self::object_equal(
+      TokenType::Equal => Ok(Object::Boolean(Self::object_equal(
         &left_value,
         &right_value,
-        operator
-      )?;
-      Ok(Object::Boolean(!res))
+        operator,
+      )?)),
+      TokenType::BangEqual => {
+        let res = Self::object_equal(&left_value, &right_value, operator)?;
+        Ok(Object::Boolean(!res))
       }
       TokenType::Greater => Self::object_compare(left_value, right_value, operator, |o| {
         o == Ordering::Greater
@@ -287,11 +315,17 @@ impl Interpreter {
     }
   }
 
-  fn object_bang<'src>(right_value: &Object, token: &Token<'src>) -> Result<Object, RuntimeError<'src>> {
+  fn object_bang<'src>(
+    right_value: &Object,
+    token: &Token<'src>,
+  ) -> Result<Object, RuntimeError<'src>> {
     match right_value {
       Object::Nil => Ok(Object::Boolean(true)),
       Object::Boolean(flag) => Ok(Object::Boolean(!flag)),
-      _ => Err(RuntimeError { message: format!("Cannot reverse type '{}'", right_value.get_type_name()) , token: token.clone() })
+      _ => Err(RuntimeError {
+        message: format!("Cannot reverse type '{}'", right_value.get_type_name()),
+        token: token.clone(),
+      }),
     }
   }
 
@@ -353,14 +387,43 @@ impl Interpreter {
     }
   }
 
-  fn object_equal<'src>(left: &Object, right: &Object, token: &Token<'src>) -> Result<bool, RuntimeError<'src>> {
+  fn object_equal<'src>(
+    left: &Object,
+    right: &Object,
+    token: &Token<'src>,
+  ) -> Result<bool, RuntimeError<'src>> {
     match (left, right) {
       (Object::Number(l), Object::Number(r)) => Ok(l == r),
       (Object::Boolean(l), Object::Boolean(r)) => Ok(l == r),
       (Object::String(l), Object::String(r)) => Ok(l == r),
       (Object::Nil, Object::Nil) => Ok(true),
       (Object::Nil, _) | (_, Object::Nil) => Ok(false),
-      _ => Err(RuntimeError { message: format!("Cannot compare '{}' with '{}'", left.get_type_name(), right.get_type_name()), token: token.clone() })
+      _ => Err(RuntimeError {
+        message: format!(
+          "Cannot compare '{}' with '{}'",
+          left.get_type_name(),
+          right.get_type_name()
+        ),
+        token: token.clone(),
+      }),
+    }
+  }
+
+  fn require_bool_or_nil<'src>(
+    value: &Object,
+    token: &Token<'src>,
+  ) -> Result<bool, RuntimeError<'src>> {
+    match value {
+      Object::Boolean(b) => Ok(*b),
+      Object::Nil => Ok(false),
+      other => Err(RuntimeError {
+        message: format!(
+          "'{}' operand must be Bool or Nil, got '{}'",
+          token.lexeme(),
+          other.get_type_name()
+        ),
+        token: token.clone(),
+      }),
     }
   }
 }
