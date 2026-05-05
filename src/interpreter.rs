@@ -149,15 +149,17 @@ impl Interpreter {
           Ok(())
         }
       }
-      Stmt::While { keyword, condition, body } => {
-        let mut lox_bool_obj = self.evaluate(condition)?;
-        let mut cond = Self::require_bool_or_nil(&lox_bool_obj, &keyword)?;
-        while cond {
-          self.execute_block(body)?;
-          lox_bool_obj = self.evaluate(condition)?;
-          if let Object::Boolean(flag) = lox_bool_obj {
-            cond = flag;
+      Stmt::While {
+        keyword,
+        condition,
+        body,
+      } => {
+        loop {
+          let value = self.evaluate(condition)?;
+          if !Self::require_bool_or_nil(&value, keyword)? {
+            break;
           }
+          self.execute_block(body)?;
         }
         Ok(())
       }
