@@ -1,4 +1,5 @@
 use crate::{
+  builtin,
   error_handling::RuntimeError,
   expr::Expr,
   object::{LoxFunction, Object},
@@ -98,8 +99,12 @@ impl<'src> Environment<'src> {
 
 impl<'src> Interpreter<'src> {
   pub fn new() -> Interpreter<'src> {
+    let mut globals = Environment::new();
+    for (name, func) in builtin::Builtin::output_builtin() {
+      let _ = globals.define_variable(name, Some(func)); // let _ 吞掉 Result,避免 must_use 警告
+    }
     Interpreter {
-      environment: Rc::new(RefCell::new(Environment::new())),
+      environment: Rc::new(RefCell::new(globals)),
     }
   }
 
@@ -195,7 +200,7 @@ impl<'src> Interpreter<'src> {
             message,
             token: name.clone(),
           })?;
-          Ok(Flow::Normal)
+        Ok(Flow::Normal)
       }
       Stmt::Return { keyword: _, value } => {
         let res = match value {
@@ -306,26 +311,44 @@ impl<'src> Interpreter<'src> {
         for arg in arguments {
           args.push(self.evaluate(arg)?);
         }
-        let function = match callee_val {
-          Object::Function(f) => f,
+        match callee_val {
+          Object::Function(function) => {
+            if args.len() != function.parameters.len() {
+              Err(RuntimeError {
+                message: format!(
+                  "Expected {} arguments but got {}",
+                  function.parameters.len(),
+                  args.len()
+                ),
+                token: paren.clone(),
+              })
+            } else {
+              self.call_function(&function, args)
+            }
+          }
+          Object::Native(function) => {
+            if args.len() != function.arity {
+              Err(RuntimeError {
+                message: format!(
+                  "Expected {} arguments but got {}",
+                  function.arity,
+                  args.len()
+                ),
+                token: paren.clone(),
+              })
+            } else {
+              (function.func)(args).map_err(|message| RuntimeError {
+                message,
+                token: paren.clone(),
+              })
+            }
+          }
           other => {
             return Err(RuntimeError {
               message: format!("Can only call functions, got '{}'", other.get_type_name()),
               token: paren.clone(),
             });
           }
-        };
-        if args.len() != function.parameters.len() {
-          Err(RuntimeError {
-            message: format!(
-              "Expected {} arguments but got {}",
-              function.parameters.len(),
-              args.len()
-            ),
-            token: paren.clone(),
-          })
-        } else {
-          self.call_function(&function, args)
         }
       }
     }

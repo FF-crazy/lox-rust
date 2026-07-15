@@ -27,6 +27,38 @@ impl<'src> fmt::Debug for LoxFunction<'src> {
   }
 }
 
+#[derive(Clone, Copy)]
+pub struct NativeFunction<'src> {
+  pub name: &'static str,
+  pub arity: usize,
+  pub func: fn(Vec<Object<'src>>) -> Result<Object<'src>, String>,
+}
+
+impl<'src> Display for NativeFunction<'src> {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    write!(f, "<native fn {}>", self.name)
+  }
+}
+
+impl<'src> fmt::Debug for NativeFunction<'src> {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    f.debug_struct("NativeFunction")
+      .field("name", &self.name)
+      .field("arity", &self.arity)
+      .finish_non_exhaustive()
+  }
+}
+
+impl<'src> NativeFunction<'src> {
+  pub fn new(name: &'static str, arity: usize, func: fn(Vec<Object<'src>>) -> Result<Object<'src>, String>) -> Self {
+    Self {
+      name,
+      arity,
+      func,
+    }
+  }
+}
+
 #[derive(Display, Debug, Clone)]
 pub enum Object<'src> {
   Number(f64),
@@ -34,6 +66,7 @@ pub enum Object<'src> {
   Nil,
   Boolean(bool),
   Function(Rc<LoxFunction<'src>>),
+  Native(NativeFunction<'src>),
 }
 
 impl<'src> Object<'src> {
@@ -44,6 +77,7 @@ impl<'src> Object<'src> {
       Object::Boolean(_) => "Boolean",
       Object::Nil => "Nil",
       Object::Function(_) => "Function",
+      Object::Native(_) => "NativeFunction",
     }
   }
 }
