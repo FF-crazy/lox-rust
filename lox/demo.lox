@@ -1,10 +1,21 @@
-fun fib(n) {
-  if n <= 0 {
-    return 0;
-  } else if n <= 2 {
-    return 1;
+
+fun combinations(n, k) {
+  var count = 0;
+  fun backtrack(start, depth, code) {
+    if depth == k {
+      println(code);
+      count = count + 1;
+      return;
+    }
+    for (var i = start; i <= n; i = i + 1) {
+      backtrack(i + 1, depth + 1, code * 10 + i);
+    }
   }
-  return fib(n-1) + fib(n-2);
+
+  println("combinations:");
+  backtrack(1, 0, 0);
+  print("total: ");
+  println(count);
 }
 
-println(abs(-20));
+combinations(4, 3);

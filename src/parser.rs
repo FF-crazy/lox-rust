@@ -47,6 +47,8 @@ impl<'src> Parser<'src> {
       self.if_statement(keyword)
     } else if let Some(keyword) = self.match_one_of(&[TokenType::While]) {
       self.while_statement(keyword)
+    } else if let Some(keyword) = self.match_one_of(&[TokenType::For]) {
+      self.for_statement(keyword)
     } else if self.match_one_of(&[TokenType::Fun]).is_some() {
       self.function()
     } else if let Some(keyword) = self.match_one_of(&[TokenType::Return]) {
@@ -64,6 +66,57 @@ impl<'src> Parser<'src> {
       keyword,
       condition,
       body,
+    })
+  }
+
+  fn for_statement(&mut self, keyword: Token<'src>) -> Result<Stmt<'src>, SyntaxError> {
+    self.consume(TokenType::LeftParen, "Expect '(' after 'for'")?;
+
+    let initializer = if self.match_one_of(&[TokenType::SemiColon]).is_some() {
+      None
+    } else if self.match_one_of(&[TokenType::Var]).is_some() {
+      Some(self.var_declaration()?)
+    } else {
+      Some(self.expression_statement()?)
+    };
+
+    let condition = if self.peek().map(|token| token.ttype()) == Some(TokenType::SemiColon) {
+      Expr::Literal(Object::Boolean(true))
+    } else {
+      self.expression()?
+    };
+    self.consume(TokenType::SemiColon, "Expect ';' after loop condition")?;
+
+    let increment = if self.peek().map(|token| token.ttype()) == Some(TokenType::RightParen) {
+      None
+    } else {
+      Some(self.expression()?)
+    };
+    self.consume(TokenType::RightParen, "Expect ')' after for clauses")?;
+
+    let body = self.statement()?;
+    let body = match increment {
+      Some(increment) => match body {
+        Stmt::Block(mut statements) => {
+          statements.push(Stmt::Expression(increment));
+          statements
+        }
+        statement => vec![statement, Stmt::Expression(increment)],
+      },
+      None => match body {
+        Stmt::Block(statements) => statements,
+        statement => vec![statement],
+      },
+    };
+
+    let loop_statement = Stmt::While {
+      keyword,
+      condition,
+      body,
+    };
+    Ok(match initializer {
+      Some(initializer) => Stmt::Block(vec![initializer, loop_statement]),
+      None => loop_statement,
     })
   }
 
