@@ -49,6 +49,8 @@ impl<'src> Parser<'src> {
       self.if_statement(keyword)
     } else if let Some(keyword) = self.match_one_of(&[TokenType::While]) {
       self.while_statement(keyword)
+    } else if self.match_one_of(&[TokenType::Fun]).is_some() {
+      self.function()
     } else {
       self.expression_statement()
     }
@@ -58,7 +60,11 @@ impl<'src> Parser<'src> {
     let condition = self.expression()?;
     self.consume(TokenType::LeftBrace, "Expect '{' after while condition")?;
     let body = self.block()?;
-    Ok(Stmt::While { keyword, condition, body })
+    Ok(Stmt::While {
+      keyword,
+      condition,
+      body,
+    })
   }
 
   fn if_statement(&mut self, keyword: Token<'src>) -> Result<Stmt<'src>, SyntaxError> {
@@ -81,6 +87,30 @@ impl<'src> Parser<'src> {
       condition,
       then_branch,
       else_branch,
+    })
+  }
+
+  fn function(&mut self) -> Result<Stmt<'src>, SyntaxError> {
+    let name = self.consume(TokenType::Identifier, "Expect function name here")?;
+    self.consume(TokenType::LeftParen, "Expect '(' here")?;
+    let mut parameters = Vec::new();
+    while let Some(cur_token) = self.peek() {
+      if cur_token.ttype() == TokenType::RightParen {
+        break;
+      }
+      let p = self.consume(TokenType::Identifier, "Expect parameter name")?;
+      parameters.push(p);
+      if self.match_one_of(&[TokenType::Comma]).is_none() {
+        break;
+      }
+    }
+    self.consume(TokenType::RightParen, "Expect ')' after parameters")?;
+    self.consume(TokenType::LeftBrace, "Expect '{' before function body")?;
+    let body = self.block()?;
+    Ok(Stmt::Function {
+      name,
+      parameters,
+      body,
     })
   }
 
@@ -240,8 +270,34 @@ impl<'src> Parser<'src> {
         right: Box::new(right),
       })
     } else {
-      self.primary()
+      self.call()
     }
+  }
+
+  fn call(&mut self) -> Result<Expr<'src>, SyntaxError> {
+    let mut expr = self.primary()?;
+    while self.match_one_of(&[TokenType::LeftParen]).is_some() {
+      expr = self.finish_call(expr)?;
+    }
+    Ok(expr)
+  }
+
+  fn finish_call(&mut self, callee: Expr<'src>) -> Result<Expr<'src>, SyntaxError> {
+    let mut arguments = Vec::new();
+    if self.peek().map(|t| t.ttype()) != Some(TokenType::RightParen) {
+      loop {
+        arguments.push(self.expression()?);
+        if self.match_one_of(&[TokenType::Comma]).is_none() {
+          break;
+        }
+      }
+    }
+    let paren = self.consume(TokenType::RightParen, "Expect ')' after arguments")?;
+    Ok(Expr::Call {
+      callee: Box::new(callee),
+      paren,
+      arguments,
+    })
   }
 
   fn primary(&mut self) -> Result<Expr<'src>, SyntaxError> {

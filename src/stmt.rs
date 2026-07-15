@@ -20,5 +20,10 @@ pub enum Stmt<'src> {
     keyword: Token<'src>,
     condition: Expr<'src>,
     body: Vec<Stmt<'src>>,
-  }
+  },
+  Function {
+    name: Token<'src>,
+    parameters: Vec<Token<'src>>,
+    body: Vec<Stmt<'src>>,
+  },
 }

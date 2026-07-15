@@ -24,6 +24,11 @@ pub enum Expr<'src> {
     operator: Token<'src>,
     right: Box<Expr<'src>>,
   },
+  Call {
+    callee: Box<Expr<'src>>,
+    paren: Token<'src>,
+    arguments: Vec<Expr<'src>>,
+  }
 }
 
 impl<'src> fmt::Display for Expr<'src> {
@@ -47,6 +52,9 @@ impl<'src> fmt::Display for Expr<'src> {
         right,
       } => {
         write!(f, "({} {} {})", operator.lexeme(), left, right)
+      },
+      Expr::Call { callee, paren, arguments } => {
+        write!(f, "({} {})", callee, paren)
       }
     }
   }
