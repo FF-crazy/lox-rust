@@ -6,75 +6,70 @@ use crate::{
   token::{Token, TokenType},
 };
 
-use std::cmp::Ordering;
+use std::{cell::RefCell, cmp::Ordering, rc::Rc};
 use std::collections::HashMap;
 
 pub struct Interpreter {
-  environment: Environment,
+  environment: Rc<RefCell<Environment>>,
 }
 
 struct Environment {
-  scopes: Vec<HashMap<String, Option<Object>>>,
+  values: HashMap<String, Option<Object>>,
+  enclosing: Option<Rc<RefCell<Environment>>>,
 }
 
 impl Environment {
   pub fn new() -> Environment {
     Environment {
-      scopes: vec![HashMap::new()],
+      values: HashMap::new(),
+      enclosing: None,
+    }
+  }
+  pub fn with_enclosing(parent: Rc<RefCell<Environment>>)  -> Environment {
+    Environment {
+      values: HashMap::new(),
+      enclosing: Some(parent),
     }
   }
 
   pub fn define_variable(&mut self, name: &str, obj: Option<Object>) -> Result<(), String> {
-    let values = self
-      .scopes
-      .last_mut()
-      .expect("Always have a static variable");
-    if values.contains_key(name) {
+    if self.values.contains_key(name) {
       Err(format!(
         "Variable '{}' is already declared in this scope ",
         name
       ))
     } else {
-      values.insert(name.to_string(), obj);
+      self.values.insert(name.to_string(), obj);
       Ok(())
     }
   }
 
   pub fn get_variable(&self, name: &str) -> Option<Option<Object>> {
-    for scope in self.scopes.iter().rev() {
-      if let Some(slot) = scope.get(name) {
-        if slot.is_some() {
-          return Some(slot.clone());
-        } else {
-          return Some(None);
-        }
-      }
+    if let Some(slot) = self.values.get(name) {
+      Some(slot.clone())
+    } else if let Some(parent) = &self.enclosing {
+      parent.borrow().get_variable(name)
+    } else {
+      None
     }
-    None
   }
 
   pub fn assign_value(&mut self, name: &str, value: Object) -> Result<(), String> {
-    for scope in self.scopes.iter_mut().rev() {
-      if let Some(slot) = scope.get_mut(name) {
-        if let Some(source) = slot {
-          Self::reassign(source, value)?;
-        } else {
-          *slot = Some(value)
-        }
-        return Ok(());
+    if let Some(slot) = self.values.get_mut(name) {
+      if let Some(source) = slot {
+        Self::reassign(source, value)?;
+        Ok(())
+      } else {
+        *slot = Some(value);
+        Ok(())
       }
+    } else if let Some(parent) = &self.enclosing {
+      parent.borrow_mut().assign_value(name, value)
+    } else {
+      Err(format!("Undefined variable '{}'", name))
     }
-    Err(format!("Undefined variable '{}'", name))
   }
 
-  pub fn in_scope(&mut self) {
-    self.scopes.push(HashMap::new());
-  }
-
-  pub fn out_scope(&mut self) {
-    self.scopes.pop();
-    debug_assert!(!self.scopes.is_empty(), "popped global scope")
-  }
 
   fn reassign(source: &mut Object, target: Object) -> Result<(), String> {
     use std::mem::discriminant;
@@ -96,7 +91,7 @@ impl Environment {
 impl Interpreter {
   pub fn new() -> Interpreter {
     Interpreter {
-      environment: Environment::new(),
+      environment: Rc::new(RefCell::new(Environment::new())),
     }
   }
 
@@ -123,7 +118,7 @@ impl Interpreter {
           Some(expr) => Some(self.evaluate(expr)?),
           None => None,
         };
-        if let Err(message) = self.environment.define_variable(name.lexeme(), value) {
+        if let Err(message) = self.environment.borrow_mut().define_variable(name.lexeme(), value) {
           Err(RuntimeError {
             message,
             token: name.clone(),
@@ -162,14 +157,19 @@ impl Interpreter {
           self.execute_block(body)?;
         }
         Ok(())
+      },
+      Stmt::Function { name, parameters, body } => {
+        todo!()
       }
     }
   }
 
   fn execute_block<'src>(&mut self, stmts: &Vec<Stmt<'src>>) -> Result<(), RuntimeError<'src>> {
-    self.environment.in_scope();
+    let parent = Rc::clone(&self.environment);
+    let child = Rc::new(RefCell::new(Environment::with_enclosing(Rc::clone(&parent))));
+    self.environment = child;
     let res = stmts.iter().try_for_each(|s| self.execute_statement(s));
-    self.environment.out_scope();
+    self.environment = parent;
     res
   }
 
@@ -191,7 +191,7 @@ impl Interpreter {
         Self::apply_binary(left_value, operator, right_value)
       }
       Expr::Variable(name) => {
-        if let Some(var) = self.environment.get_variable(name.lexeme()) {
+        if let Some(var) = self.environment.borrow().get_variable(name.lexeme()) {
           var.ok_or(RuntimeError {
             message: format!(
               "Variable '{}' is used before assign it a value",
@@ -208,7 +208,7 @@ impl Interpreter {
       }
       Expr::Assign { name, value } => {
         let value = self.evaluate(value)?;
-        if let Err(error_message) = self.environment.assign_value(name.lexeme(), value.clone()) {
+        if let Err(error_message) = self.environment.borrow_mut().assign_value(name.lexeme(), value.clone()) {
           Err(RuntimeError {
             message: error_message,
             token: name.clone(),
@@ -233,6 +233,9 @@ impl Interpreter {
           }
         };
         Ok(Object::Boolean(res))
+      },
+      Expr::Call { callee, paren, arguments } => {
+        todo!()
       }
     }
   }
