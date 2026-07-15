@@ -39,9 +39,7 @@ impl<'src> Parser<'src> {
   }
 
   fn statement(&mut self) -> Result<Stmt<'src>, SyntaxError> {
-    if self.match_one_of(&[TokenType::Print]).is_some() {
-      self.print_statement()
-    } else if self.match_one_of(&[TokenType::Var]).is_some() {
+    if self.match_one_of(&[TokenType::Var]).is_some() {
       self.var_declaration()
     } else if self.match_one_of(&[TokenType::LeftBrace]).is_some() {
       self.block().map(Stmt::Block)
@@ -160,12 +158,6 @@ impl<'src> Parser<'src> {
         initializer: None,
       })
     }
-  }
-
-  fn print_statement(&mut self) -> Result<Stmt<'src>, SyntaxError> {
-    let value = self.expression()?;
-    self.consume(TokenType::SemiColon, "Expect ';' after value")?;
-    Ok(Stmt::Print(value))
   }
 
   fn expression(&mut self) -> Result<Expr<'src>, SyntaxError> {

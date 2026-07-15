@@ -55,14 +55,8 @@ fn repl() {
 }
 
 fn try_format_input(input: &str) -> String {
-  let mut res = input.to_string();
-  if !input.ends_with(";") {
-    res = format!("{};", res);
-  }
-  if !input.starts_with("print ") {
-    res = format!("print {}", res);
-  }
-  res
+  let expression = input.trim_end_matches(';').trim();
+  format!("println({expression});")
 }
 
 fn run_file(path: &str) -> io::Result<()> {

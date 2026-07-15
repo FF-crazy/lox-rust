@@ -101,7 +101,7 @@ impl<'src> Interpreter<'src> {
   pub fn new() -> Interpreter<'src> {
     let mut globals = Environment::new();
     for (name, func) in builtin::Builtin::output_builtin() {
-      let _ = globals.define_variable(name, Some(func)); // let _ 吞掉 Result,避免 must_use 警告
+      let _ = globals.define_variable(name, Some(func));
     }
     Interpreter {
       environment: Rc::new(RefCell::new(globals)),
@@ -119,11 +119,6 @@ impl<'src> Interpreter<'src> {
     match stmt {
       Stmt::Expression(expr) => {
         self.evaluate(expr)?;
-        Ok(Flow::Normal)
-      }
-      Stmt::Print(expr) => {
-        let value = self.evaluate(expr)?;
-        println!("{}", value);
         Ok(Flow::Normal)
       }
       Stmt::Var { name, initializer } => {
