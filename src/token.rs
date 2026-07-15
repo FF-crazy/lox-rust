@@ -56,12 +56,17 @@ pub enum TokenType {
 pub struct Token<'src> {
   ttype: TokenType,
   lexeme: &'src str,
-  literal: Option<Object>,
+  literal: Option<Object<'src>>,
   line: usize,
 }
 
 impl<'src> Token<'src> {
-  pub fn new(ttype: TokenType, lexeme: &str, literal: Option<Object>, line: usize) -> Token<'_> {
+  pub fn new(
+    ttype: TokenType,
+    lexeme: &'src str,
+    literal: Option<Object<'src>>,
+    line: usize,
+  ) -> Token<'src> {
     Token {
       ttype,
       lexeme,
@@ -78,7 +83,7 @@ impl<'src> Token<'src> {
     self.ttype
   }
 
-  pub fn literal(&self) -> Option<Object> {
+  pub fn literal(&self) -> Option<Object<'src>> {
     self.literal.clone()
   }
 

@@ -1,6 +1,5 @@
-var a = 1;
-{
-  var a = 2;
-  print a;   // 2
+fun printf(arg) {
+  print arg;
 }
-print a;     // 1
+
+printf(1);

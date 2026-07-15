@@ -31,7 +31,8 @@ fn repl() {
     if bytes_read == 0 {
       break;
     }
-    let line = line.trim_end();
+    // The interpreter retains source-backed tokens between REPL submissions.
+    let line: &'static str = Box::leak(line.trim_end().to_owned().into_boxed_str());
     if line.is_empty() {
       continue;
     }
@@ -39,7 +40,7 @@ fn repl() {
       Ok(_) => {}
       Err(err) => {
         if let LoxError::Syntax(origin_err) = err {
-          let line = try_format_input(line);
+          let line: &'static str = Box::leak(try_format_input(line).into_boxed_str());
           match run(&line, &mut interpreter) {
             Ok(()) => {}
             Err(LoxError::Syntax(_)) => origin_err.report(),
@@ -77,7 +78,7 @@ fn run_file(path: &str) -> io::Result<()> {
   Ok(())
 }
 
-fn run<'src>(source: &'src str, interpreter: &mut Interpreter) -> Result<(), LoxError<'src>> {
+fn run<'src>(source: &'src str, interpreter: &mut Interpreter<'src>) -> Result<(), LoxError<'src>> {
   let scanner = Scanner::new(source);
   let tokens = scanner.scan_tokens()?;
   let parser = Parser::new(tokens);

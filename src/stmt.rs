@@ -1,7 +1,7 @@
 
 use crate::{expr::Expr, token::Token};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Stmt<'src> {
   Expression(Expr<'src>),
   Print(Expr<'src>),

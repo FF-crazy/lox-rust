@@ -1,7 +1,7 @@
 use crate::{object::Object, token::Token};
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr<'src> {
   Binary {
     left: Box<Expr<'src>>,
@@ -9,7 +9,7 @@ pub enum Expr<'src> {
     right: Box<Expr<'src>>,
   },
   Grouping(Box<Expr<'src>>),
-  Literal(Object),
+  Literal(Object<'src>),
   Unary {
     operator: Token<'src>,
     right: Box<Expr<'src>>,
@@ -53,8 +53,12 @@ impl<'src> fmt::Display for Expr<'src> {
       } => {
         write!(f, "({} {} {})", operator.lexeme(), left, right)
       },
-      Expr::Call { callee, paren, arguments } => {
-        write!(f, "({} {})", callee, paren)
+      Expr::Call { callee, arguments, .. } => {
+        write!(f, "(call {}", callee)?;
+        for argument in arguments {
+          write!(f, " {}", argument)?;
+        }
+        write!(f, ")")
       }
     }
   }

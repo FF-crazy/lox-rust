@@ -117,7 +117,7 @@ impl<'src> Scanner<'src> {
     Ok(())
   }
 
-  fn add_token(&mut self, ttype: TokenType, literal: Option<Object>) {
+  fn add_token(&mut self, ttype: TokenType, literal: Option<Object<'src>>) {
     let text = &self.source[self.start..self.current];
     self
       .tokens

@@ -1,38 +1,39 @@
 use crate::{
   error_handling::RuntimeError,
   expr::Expr,
-  object::Object,
+  object::{LoxFunction, Object},
   stmt::Stmt,
   token::{Token, TokenType},
 };
 
-use std::{cell::RefCell, cmp::Ordering, rc::Rc};
 use std::collections::HashMap;
+use std::{cell::RefCell, cmp::Ordering, rc::Rc};
 
-pub struct Interpreter {
-  environment: Rc<RefCell<Environment>>,
+pub struct Interpreter<'src> {
+  environment: Rc<RefCell<Environment<'src>>>,
 }
 
-struct Environment {
-  values: HashMap<String, Option<Object>>,
-  enclosing: Option<Rc<RefCell<Environment>>>,
+#[derive(Debug)]
+pub struct Environment<'src> {
+  values: HashMap<String, Option<Object<'src>>>,
+  enclosing: Option<Rc<RefCell<Environment<'src>>>>,
 }
 
-impl Environment {
-  pub fn new() -> Environment {
+impl<'src> Environment<'src> {
+  pub fn new() -> Environment<'src> {
     Environment {
       values: HashMap::new(),
       enclosing: None,
     }
   }
-  pub fn with_enclosing(parent: Rc<RefCell<Environment>>)  -> Environment {
+  pub fn with_enclosing(parent: Rc<RefCell<Environment<'src>>>) -> Environment<'src> {
     Environment {
       values: HashMap::new(),
       enclosing: Some(parent),
     }
   }
 
-  pub fn define_variable(&mut self, name: &str, obj: Option<Object>) -> Result<(), String> {
+  pub fn define_variable(&mut self, name: &str, obj: Option<Object<'src>>) -> Result<(), String> {
     if self.values.contains_key(name) {
       Err(format!(
         "Variable '{}' is already declared in this scope ",
@@ -44,7 +45,7 @@ impl Environment {
     }
   }
 
-  pub fn get_variable(&self, name: &str) -> Option<Option<Object>> {
+  pub fn get_variable(&self, name: &str) -> Option<Option<Object<'src>>> {
     if let Some(slot) = self.values.get(name) {
       Some(slot.clone())
     } else if let Some(parent) = &self.enclosing {
@@ -54,7 +55,7 @@ impl Environment {
     }
   }
 
-  pub fn assign_value(&mut self, name: &str, value: Object) -> Result<(), String> {
+  pub fn assign_value(&mut self, name: &str, value: Object<'src>) -> Result<(), String> {
     if let Some(slot) = self.values.get_mut(name) {
       if let Some(source) = slot {
         Self::reassign(source, value)?;
@@ -70,8 +71,7 @@ impl Environment {
     }
   }
 
-
-  fn reassign(source: &mut Object, target: Object) -> Result<(), String> {
+  fn reassign(source: &mut Object<'src>, target: Object<'src>) -> Result<(), String> {
     use std::mem::discriminant;
     let same_type = discriminant(source) == discriminant(&target);
     let either_nil = matches!(source, Object::Nil) || matches!(target, Object::Nil);
@@ -88,21 +88,21 @@ impl Environment {
   }
 }
 
-impl Interpreter {
-  pub fn new() -> Interpreter {
+impl<'src> Interpreter<'src> {
+  pub fn new() -> Interpreter<'src> {
     Interpreter {
       environment: Rc::new(RefCell::new(Environment::new())),
     }
   }
 
-  pub fn interpret<'src>(&mut self, stmts: &Vec<Stmt<'src>>) -> Result<(), RuntimeError<'src>> {
+  pub fn interpret(&mut self, stmts: &Vec<Stmt<'src>>) -> Result<(), RuntimeError<'src>> {
     for stmt in stmts {
       self.execute_statement(stmt)?;
     }
     Ok(())
   }
 
-  fn execute_statement<'src>(&mut self, stmt: &Stmt<'src>) -> Result<(), RuntimeError<'src>> {
+  fn execute_statement(&mut self, stmt: &Stmt<'src>) -> Result<(), RuntimeError<'src>> {
     match stmt {
       Stmt::Expression(expr) => {
         self.evaluate(expr)?;
@@ -118,7 +118,11 @@ impl Interpreter {
           Some(expr) => Some(self.evaluate(expr)?),
           None => None,
         };
-        if let Err(message) = self.environment.borrow_mut().define_variable(name.lexeme(), value) {
+        if let Err(message) = self
+          .environment
+          .borrow_mut()
+          .define_variable(name.lexeme(), value)
+        {
           Err(RuntimeError {
             message,
             token: name.clone(),
@@ -157,23 +161,43 @@ impl Interpreter {
           self.execute_block(body)?;
         }
         Ok(())
-      },
-      Stmt::Function { name, parameters, body } => {
-        todo!()
+      }
+      Stmt::Function {
+        name,
+        parameters,
+        body,
+      } => {
+        let function = LoxFunction {
+          name: name.clone(),
+          parameters: parameters.clone(),
+          body: body.clone(),
+          closure: Rc::clone(&self.environment),
+        };
+        let value = Object::Function(Rc::new(function));
+        self
+          .environment
+          .borrow_mut()
+          .define_variable(name.lexeme(), Some(value))
+          .map_err(|message| RuntimeError {
+            message,
+            token: name.clone(),
+          })
       }
     }
   }
 
-  fn execute_block<'src>(&mut self, stmts: &Vec<Stmt<'src>>) -> Result<(), RuntimeError<'src>> {
+  fn execute_block(&mut self, stmts: &Vec<Stmt<'src>>) -> Result<(), RuntimeError<'src>> {
     let parent = Rc::clone(&self.environment);
-    let child = Rc::new(RefCell::new(Environment::with_enclosing(Rc::clone(&parent))));
+    let child = Rc::new(RefCell::new(Environment::with_enclosing(Rc::clone(
+      &parent,
+    ))));
     self.environment = child;
     let res = stmts.iter().try_for_each(|s| self.execute_statement(s));
     self.environment = parent;
     res
   }
 
-  fn evaluate<'src>(&mut self, expr: &Expr<'src>) -> Result<Object, RuntimeError<'src>> {
+  fn evaluate(&mut self, expr: &Expr<'src>) -> Result<Object<'src>, RuntimeError<'src>> {
     match expr {
       Expr::Literal(value) => Ok(value.clone()),
       Expr::Grouping(inner) => self.evaluate(inner),
@@ -208,7 +232,11 @@ impl Interpreter {
       }
       Expr::Assign { name, value } => {
         let value = self.evaluate(value)?;
-        if let Err(error_message) = self.environment.borrow_mut().assign_value(name.lexeme(), value.clone()) {
+        if let Err(error_message) = self
+          .environment
+          .borrow_mut()
+          .assign_value(name.lexeme(), value.clone())
+        {
           Err(RuntimeError {
             message: error_message,
             token: name.clone(),
@@ -233,17 +261,74 @@ impl Interpreter {
           }
         };
         Ok(Object::Boolean(res))
-      },
-      Expr::Call { callee, paren, arguments } => {
-        todo!()
+      }
+      Expr::Call {
+        callee,
+        paren,
+        arguments,
+      } => {
+        let callee_val = self.evaluate(callee)?;
+        let mut args = Vec::new();
+        for arg in arguments {
+          args.push(self.evaluate(arg)?);
+        }
+        let function = match callee_val {
+          Object::Function(f) => f,
+          other => {
+            return Err(RuntimeError {
+              message: format!("Can only call functions, got '{}'", other.get_type_name()),
+              token: paren.clone(),
+            });
+          }
+        };
+        if args.len() != function.parameters.len() {
+          Err(RuntimeError {
+            message: format!(
+              "Expected {} arguments but got {}",
+              function.parameters.len(),
+              args.len()
+            ),
+            token: paren.clone(),
+          })
+        } else {
+          self.call_function(&function, args)
+        }
       }
     }
   }
 
-  fn apply_unary<'src>(
+  fn call_function(
+    &mut self,
+    function: &LoxFunction<'src>,
+    args: Vec<Object<'src>>,
+  ) -> Result<Object<'src>, RuntimeError<'src>> {
+    let env = Rc::new(RefCell::new(Environment::with_enclosing(Rc::clone(
+      &function.closure,
+    ))));
+    for (param, arg) in function.parameters.iter().zip(args) {
+      env
+        .borrow_mut()
+        .define_variable(param.lexeme(), Some(arg))
+        .map_err(|message| RuntimeError {
+          message,
+          token: param.clone(),
+        })?;
+    }
+    let previous = Rc::clone(&self.environment);
+    self.environment = env;
+    let res = function
+      .body
+      .iter()
+      .try_for_each(|s| self.execute_statement(s));
+    self.environment = previous;
+    res?;
+    Ok(Object::Nil)
+  }
+
+  fn apply_unary(
     operator: &Token<'src>,
-    right_value: Object,
-  ) -> Result<Object, RuntimeError<'src>> {
+    right_value: Object<'src>,
+  ) -> Result<Object<'src>, RuntimeError<'src>> {
     match operator.ttype() {
       TokenType::Bang => Ok(Self::object_bang(&right_value, operator)?),
       TokenType::Minus => Self::object_minus(right_value, operator),
@@ -254,11 +339,11 @@ impl Interpreter {
     }
   }
 
-  fn apply_binary<'src>(
-    left_value: Object,
+  fn apply_binary(
+    left_value: Object<'src>,
     operator: &Token<'src>,
-    right_value: Object,
-  ) -> Result<Object, RuntimeError<'src>> {
+    right_value: Object<'src>,
+  ) -> Result<Object<'src>, RuntimeError<'src>> {
     match operator.ttype() {
       TokenType::Plus => Self::object_plus(left_value, right_value, operator),
       TokenType::Minus => match (left_value, right_value) {
@@ -304,11 +389,11 @@ impl Interpreter {
     }
   }
 
-  fn object_plus<'src>(
-    left: Object,
-    right: Object,
+  fn object_plus(
+    left: Object<'src>,
+    right: Object<'src>,
     token: &Token<'src>,
-  ) -> Result<Object, RuntimeError<'src>> {
+  ) -> Result<Object<'src>, RuntimeError<'src>> {
     match (left, right) {
       (Object::Number(l), Object::Number(r)) => Ok(Object::Number(l + r)),
       (Object::String(l), Object::String(r)) => Ok(Object::String(l + &r)),
@@ -319,10 +404,10 @@ impl Interpreter {
     }
   }
 
-  fn object_minus<'src>(
-    right_value: Object,
+  fn object_minus(
+    right_value: Object<'src>,
     operator: &Token<'src>,
-  ) -> Result<Object, RuntimeError<'src>> {
+  ) -> Result<Object<'src>, RuntimeError<'src>> {
     match right_value {
       Object::Number(value) => Ok(Object::Number(-value)),
       _ => Err(RuntimeError {
@@ -332,10 +417,10 @@ impl Interpreter {
     }
   }
 
-  fn object_bang<'src>(
-    right_value: &Object,
+  fn object_bang(
+    right_value: &Object<'src>,
     token: &Token<'src>,
-  ) -> Result<Object, RuntimeError<'src>> {
+  ) -> Result<Object<'src>, RuntimeError<'src>> {
     match right_value {
       Object::Nil => Ok(Object::Boolean(true)),
       Object::Boolean(flag) => Ok(Object::Boolean(!flag)),
@@ -346,11 +431,11 @@ impl Interpreter {
     }
   }
 
-  fn object_multiply<'src>(
-    left: Object,
-    right: Object,
+  fn object_multiply(
+    left: Object<'src>,
+    right: Object<'src>,
     token: &Token<'src>,
-  ) -> Result<Object, RuntimeError<'src>> {
+  ) -> Result<Object<'src>, RuntimeError<'src>> {
     match (left, right) {
       (Object::Number(l), Object::Number(r)) => Ok(Object::Number(l * r)),
       (Object::String(s), Object::Number(num)) | (Object::Number(num), Object::String(s)) => {
@@ -378,12 +463,12 @@ impl Interpreter {
     }
   }
 
-  fn object_compare<'src>(
-    left: Object,
-    right: Object,
+  fn object_compare(
+    left: Object<'src>,
+    right: Object<'src>,
     token: &Token<'src>,
     cmp: impl Fn(Ordering) -> bool,
-  ) -> Result<Object, RuntimeError<'src>> {
+  ) -> Result<Object<'src>, RuntimeError<'src>> {
     let ordering = match (&left, &right) {
       (Object::Number(l), Object::Number(r)) => l.partial_cmp(r),
       (Object::String(l), Object::String(r)) => l.partial_cmp(r),
@@ -404,9 +489,9 @@ impl Interpreter {
     }
   }
 
-  fn object_equal<'src>(
-    left: &Object,
-    right: &Object,
+  fn object_equal(
+    left: &Object<'src>,
+    right: &Object<'src>,
     token: &Token<'src>,
   ) -> Result<bool, RuntimeError<'src>> {
     match (left, right) {
@@ -426,8 +511,8 @@ impl Interpreter {
     }
   }
 
-  fn require_bool_or_nil<'src>(
-    value: &Object,
+  fn require_bool_or_nil(
+    value: &Object<'src>,
     token: &Token<'src>,
   ) -> Result<bool, RuntimeError<'src>> {
     match value {
