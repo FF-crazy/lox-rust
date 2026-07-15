@@ -26,4 +26,8 @@ pub enum Stmt<'src> {
     parameters: Vec<Token<'src>>,
     body: Vec<Stmt<'src>>,
   },
+  Return {
+    keyword: Token<'src>,
+    value: Option<Expr<'src>>,
+  }
 }

@@ -51,6 +51,8 @@ impl<'src> Parser<'src> {
       self.while_statement(keyword)
     } else if self.match_one_of(&[TokenType::Fun]).is_some() {
       self.function()
+    } else if let Some(keyword) = self.match_one_of(&[TokenType::Return]) {
+      self.return_statement(keyword)
     } else {
       self.expression_statement()
     }
@@ -112,6 +114,16 @@ impl<'src> Parser<'src> {
       parameters,
       body,
     })
+  }
+
+  fn return_statement(&mut self, keyword: Token<'src>) -> Result<Stmt<'src>, SyntaxError> {
+    let value = if self.peek().map(|t| t.ttype()) != Some(TokenType::SemiColon) {
+      Some(self.expression()?)
+    } else {
+      None
+    };
+    self.consume(TokenType::SemiColon, "Expect ';' after return value")?;
+    Ok(Stmt::Return { keyword, value })
   }
 
   fn block(&mut self) -> Result<Vec<Stmt<'src>>, SyntaxError> {

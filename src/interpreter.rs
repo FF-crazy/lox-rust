@@ -3,11 +3,19 @@ use crate::{
   expr::Expr,
   object::{LoxFunction, Object},
   stmt::Stmt,
-  token::{Token, TokenType},
+  token::{
+    Token,
+    TokenType::{self},
+  },
 };
 
 use std::collections::HashMap;
 use std::{cell::RefCell, cmp::Ordering, rc::Rc};
+
+enum Flow<'src> {
+  Normal,
+  Return(Object<'src>),
+}
 
 pub struct Interpreter<'src> {
   environment: Rc<RefCell<Environment<'src>>>,
@@ -102,16 +110,16 @@ impl<'src> Interpreter<'src> {
     Ok(())
   }
 
-  fn execute_statement(&mut self, stmt: &Stmt<'src>) -> Result<(), RuntimeError<'src>> {
+  fn execute_statement(&mut self, stmt: &Stmt<'src>) -> Result<Flow<'src>, RuntimeError<'src>> {
     match stmt {
       Stmt::Expression(expr) => {
         self.evaluate(expr)?;
-        Ok(())
+        Ok(Flow::Normal)
       }
       Stmt::Print(expr) => {
         let value = self.evaluate(expr)?;
         println!("{}", value);
-        Ok(())
+        Ok(Flow::Normal)
       }
       Stmt::Var { name, initializer } => {
         let value = match initializer {
@@ -128,7 +136,7 @@ impl<'src> Interpreter<'src> {
             token: name.clone(),
           })
         } else {
-          Ok(())
+          Ok(Flow::Normal)
         }
       }
       Stmt::Block(stmts) => self.execute_block(stmts),
@@ -145,7 +153,7 @@ impl<'src> Interpreter<'src> {
         } else if let Some(else_branch) = else_branch {
           self.execute_block(else_branch)
         } else {
-          Ok(())
+          Ok(Flow::Normal)
         }
       }
       Stmt::While {
@@ -158,9 +166,14 @@ impl<'src> Interpreter<'src> {
           if !Self::require_bool_or_nil(&value, keyword)? {
             break;
           }
-          self.execute_block(body)?;
+          match self.execute_block(body)? {
+            Flow::Normal => {}
+            Flow::Return(val) => {
+              return Ok(Flow::Return(val));
+            }
+          }
         }
-        Ok(())
+        Ok(Flow::Normal)
       }
       Stmt::Function {
         name,
@@ -181,18 +194,39 @@ impl<'src> Interpreter<'src> {
           .map_err(|message| RuntimeError {
             message,
             token: name.clone(),
-          })
+          })?;
+          Ok(Flow::Normal)
+      }
+      Stmt::Return { keyword: _, value } => {
+        let res = match value {
+          Some(expr) => self.evaluate(expr)?,
+          None => Object::Nil,
+        };
+        Ok(Flow::Return(res))
       }
     }
   }
 
-  fn execute_block(&mut self, stmts: &Vec<Stmt<'src>>) -> Result<(), RuntimeError<'src>> {
+  fn execute_block(&mut self, stmts: &Vec<Stmt<'src>>) -> Result<Flow<'src>, RuntimeError<'src>> {
     let parent = Rc::clone(&self.environment);
     let child = Rc::new(RefCell::new(Environment::with_enclosing(Rc::clone(
       &parent,
     ))));
     self.environment = child;
-    let res = stmts.iter().try_for_each(|s| self.execute_statement(s));
+    let mut res = Ok(Flow::Normal);
+    for s in stmts {
+      match self.execute_statement(s) {
+        Ok(Flow::Normal) => {}
+        Ok(Flow::Return(val)) => {
+          res = Ok(Flow::Return(val));
+          break;
+        }
+        Err(e) => {
+          res = Err(e);
+          break;
+        }
+      }
+    }
     self.environment = parent;
     res
   }
@@ -316,13 +350,22 @@ impl<'src> Interpreter<'src> {
     }
     let previous = Rc::clone(&self.environment);
     self.environment = env;
-    let res = function
-      .body
-      .iter()
-      .try_for_each(|s| self.execute_statement(s));
+    let mut res = Ok(Object::Nil);
+    for s in &function.body {
+      match self.execute_statement(s) {
+        Ok(Flow::Normal) => {}
+        Ok(Flow::Return(val)) => {
+          res = Ok(val);
+          break;
+        }
+        Err(e) => {
+          res = Err(e);
+          break;
+        }
+      }
+    }
     self.environment = previous;
-    res?;
-    Ok(Object::Nil)
+    res
   }
 
   fn apply_unary(
@@ -542,7 +585,7 @@ mod test {
     let parser = Parser::new(tokens);
     let stmts = parser.parse().unwrap();
     let mut i = Interpreter::new();
-    i.interpret(&stmts);
+    let _ = i.interpret(&stmts);
   }
 
   #[test]
